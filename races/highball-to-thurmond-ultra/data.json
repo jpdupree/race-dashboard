@@ -1,9 +1,14 @@
 {
-  "lastUpdated": "2026-05-15T23:27:47.161Z",
+  "lastUpdated": "2026-05-15T23:30:12.551Z",
   "runners": [
     {
       "id": "soft-serve",
-      "legs": []
+      "legs": [
+        {
+          "index": 1,
+          "startTime": "2026-05-15T23:30:12.203Z"
+        }
+      ]
     }
   ]
 }
