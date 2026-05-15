@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="lib/race-theme.css?v=3">
+<link rel="stylesheet" href="lib/race-theme.css?v=4">
 <style>
   .wrap { max-width: 860px; margin: 0 auto; }
   .section {
@@ -406,7 +406,7 @@
     <div class="section-head"><div class="section-title">Course GPX (optional)</div></div>
     <input type="file" id="gpx-file" accept=".gpx,application/gpx+xml,text/xml" />
     <p class="hint" style="margin-top:8px; color: var(--text-muted); font-size:11px;" id="gpx-status">
-      Drives the map, elevation profile, and per-segment elevation totals.
+      Drives the course map on the dashboard and the elevation profile on the printout.
     </p>
   </section>
 
@@ -422,7 +422,7 @@
 
 </div>
 
-<script src="lib/race-core.js?v=3"></script>
+<script src="lib/race-core.js?v=4"></script>
 <script>
   const DEFAULT_COLORS = ['#c44a18', '#1f5e8a', '#3a8a3a', '#8a3a5e', '#8a5e3a', '#5e3a8a'];
 
@@ -990,7 +990,7 @@
   document.getElementById('gpx-file').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     const status = document.getElementById('gpx-status');
-    if (!file) { state.gpxText = null; status.textContent = 'Drives the map, elevation profile, and per-segment elevation totals.'; return; }
+    if (!file) { state.gpxText = null; status.textContent = 'Drives the course map on the dashboard and the elevation profile on the printout.'; return; }
     try {
       const text = await file.text();
       const pts = Race.gpx.parse(text);

@@ -7,7 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="lib/race-theme.css?v=3">
+<link rel="stylesheet" href="lib/race-theme.css?v=4">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
   .cutoffs {
     background: var(--bg-elevated); border: 1px solid var(--border);
@@ -356,6 +357,32 @@
     flex-wrap: wrap;
   }
   .share-banner .em { color: var(--blue); }
+
+  /* Course map */
+  #course-map-section { margin-bottom: 24px; }
+  .course-map-head {
+    display: flex; align-items: baseline; gap: 12px;
+    margin-bottom: 10px;
+  }
+  .course-map-title {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-muted);
+  }
+  .course-map-meta {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--text-dim);
+  }
+  #course-map {
+    height: 380px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--bg-card);
+  }
+  #course-map .leaflet-control-attribution {
+    background: rgba(12, 13, 16, 0.8); color: var(--text-muted);
+  }
+  #course-map .leaflet-control-attribution a { color: var(--text-dim); }
+  .aid-marker-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  }
 </style>
 </head>
 <body>
@@ -393,6 +420,14 @@
 </section>
 <section id="runners" class="runners"></section>
 
+<section id="course-map-section" style="display:none;">
+  <div class="course-map-head">
+    <span class="course-map-title">Course</span>
+    <span class="course-map-meta" id="course-map-meta"></span>
+  </div>
+  <div id="course-map"></div>
+</section>
+
 <footer class="site">
   <div class="legend">
     <span class="legend-item"><span class="swatch" style="background: var(--green);"></span>On pace</span>
@@ -403,7 +438,8 @@
   <div id="last-updated">—</div>
 </footer>
 
-<script src="lib/race-core.js?v=3"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="lib/race-core.js?v=4"></script>
 <script>
   const REFRESH_MS = 15000;
   const slug = Race.qs('id');
@@ -792,11 +828,67 @@
       maybeShowAccessPanel();
       updateLastUpdated();
       tick();
+      initCourseMap();
     } catch (err) {
       const e = document.getElementById('error');
       e.style.display = 'block';
       e.textContent = `Error loading race: ${err.message}`;
     }
+  }
+
+  // ---------- course map (Leaflet + OpenStreetMap) ----------
+  // Plots the course.gpx track with aid-station markers. Initialised once;
+  // the periodic refresh skips it after the first successful build.
+  let courseMap = null;
+  async function initCourseMap() {
+    if (courseMap || typeof L === 'undefined') return;
+
+    let gpxText;
+    try {
+      const res = await fetch(`races/${encodeURIComponent(slug)}/course.gpx?_=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) return; // no GPX for this race (or Pages not republished yet)
+      gpxText = await res.text();
+    } catch (e) { return; }
+
+    let pts;
+    try { pts = Race.gpx.parse(gpxText); } catch (e) { return; }
+    if (!pts.length) return;
+
+    document.getElementById('course-map-section').style.display = '';
+
+    courseMap = L.map('course-map', { scrollWheelZoom: false, attributionControl: true });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd', maxZoom: 19
+    }).addTo(courseMap);
+
+    const latlngs = pts.map(p => [p.lat, p.lon]);
+    const line = L.polyline(latlngs, { color: '#ff6b3d', weight: 3, opacity: 0.9 }).addTo(courseMap);
+    courseMap.fitBounds(line.getBounds(), { padding: [24, 24] });
+
+    // Aid-station markers, placed at the GPX point nearest each aid's mileage.
+    const aids = Race.course.aidStations(cfg);
+    aids.forEach((aid, i) => {
+      let best = pts[0], bestDiff = Infinity;
+      for (const p of pts) {
+        const diff = Math.abs((p.dist || 0) - aid.mileage);
+        if (diff < bestDiff) { bestDiff = diff; best = p; }
+      }
+      const isEnd = i === 0 || i === aids.length - 1;
+      L.circleMarker([best.lat, best.lon], {
+        radius: isEnd ? 6 : 5,
+        color: '#fff', weight: 2,
+        fillColor: isEnd ? '#6ee7a8' : '#ff6b3d', fillOpacity: 1
+      }).addTo(courseMap).bindTooltip(
+        `${aid.name} · ${aid.mileage.toFixed(1)} mi`,
+        { className: 'aid-marker-label', direction: 'top' }
+      );
+    });
+
+    const dist = Race.gpx.totalDistanceMi(pts);
+    const elev = Race.gpx.totalElevation(pts);
+    document.getElementById('course-map-meta').textContent =
+      `${dist.toFixed(1)} mi · +${elev.gainFt.toLocaleString()} / -${elev.lossFt.toLocaleString()} ft`;
   }
 
   // ---------- share banner (anonymous shared view) ----------
