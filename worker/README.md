@@ -78,7 +78,7 @@ return 503.
 Create the namespace and bind it:
 
 ```bash
-npx wrangler kv:namespace create AUTH_KV
+npx wrangler kv namespace create AUTH_KV
 # paste the returned id into wrangler.toml under [[kv_namespaces]]
 ```
 
