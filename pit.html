@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#0c0d10" />
+<title>Pit Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lib/race-theme.css">
+<style>
+  body { padding: 20px 16px 32px; }
+  .wrap { max-width: 860px; margin: 0 auto; }
+
+  /* connection bar */
+  .conn {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px; padding: 14px 18px; margin-bottom: 18px;
+  }
+  .conn-status { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text-muted); flex: none;
+  }
+  .status-dot.connected { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .status-dot.error { background: var(--red); box-shadow: 0 0 8px var(--red); }
+  .conn-text { flex: 1 1 auto; min-width: 200px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-dim);
+  }
+  .conn-text strong { color: var(--text); font-weight: 600; }
+  .conn-form { margin-top: 14px; display: grid; gap: 10px; }
+  .conn-form[hidden] { display: none; }
+  .conn-form .row { display: grid; grid-template-columns: 110px 1fr; gap: 10px; align-items: center; }
+  @media (max-width: 480px) { .conn-form .row { grid-template-columns: 1fr; gap: 4px; } }
+  .conn-form label {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-muted);
+  }
+
+  /* runner cards */
+  .runners { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 22px; }
+  .runner {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px; overflow: hidden; position: relative;
+    transition: border-color 0.3s ease;
+  }
+  .runner.course { border-color: rgba(255, 107, 61, 0.5); }
+  .runner.pit    { border-color: rgba(110, 231, 168, 0.4); }
+  .runner.done   { border-color: rgba(94, 200, 255, 0.4); }
+  .runner::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--border); transition: background 0.3s ease;
+  }
+  .runner.course::before { background: linear-gradient(90deg, var(--accent), transparent); }
+  .runner.pit::before    { background: linear-gradient(90deg, var(--green), transparent); }
+  .runner.done::before   { background: linear-gradient(90deg, var(--blue), transparent); }
+
+  .runner-head {
+    padding: 16px 20px 12px; display: flex;
+    justify-content: space-between; align-items: center; gap: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .runner-name {
+    font-family: 'Fraunces', serif; font-size: 24px;
+    font-weight: 600; letter-spacing: -0.02em;
+  }
+  .state-badge {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    padding: 6px 10px; border-radius: 2px; border: 1px solid currentColor;
+  }
+  .state-course { color: var(--accent); }
+  .state-pit    { color: var(--green); }
+  .state-idle   { color: var(--text-muted); }
+  .state-done   { color: var(--blue); }
+
+  .where {
+    padding: 12px 20px; border-bottom: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    color: var(--text-dim);
+  }
+  .where strong { color: var(--text); }
+  .where .arrow { color: var(--text-muted); margin: 0 6px; }
+
+  .state-timer {
+    padding: 14px 20px; display: flex; justify-content: space-between;
+    align-items: baseline; border-bottom: 1px solid var(--border);
+    background: var(--bg-elevated);
+  }
+  .state-timer .label {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    text-transform: uppercase; letter-spacing: 0.2em; color: var(--text-muted);
+  }
+  .state-timer .value {
+    font-family: 'JetBrains Mono', monospace; font-size: 22px;
+    font-weight: 700; letter-spacing: -0.02em;
+  }
+  .runner.course .state-timer .value { color: var(--accent); }
+  .runner.pit    .state-timer .value { color: var(--green); }
+
+  .big-btn {
+    display: block; width: 100%;
+    padding: 24px 16px;
+    background: var(--bg-elevated);
+    color: var(--text); border: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px; font-weight: 700;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    cursor: pointer; user-select: none;
+    line-height: 1.3;
+    transition: background 0.15s ease, transform 0.05s ease;
+  }
+  .big-btn:hover { background: #1f222a; }
+  .big-btn:active { transform: scale(0.98); background: #2a2e38; }
+  .big-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .big-btn.out {
+    background: linear-gradient(180deg, rgba(255, 107, 61, 0.18), rgba(255, 107, 61, 0.06));
+    color: var(--accent);
+  }
+  .big-btn.in {
+    background: linear-gradient(180deg, rgba(110, 231, 168, 0.18), rgba(110, 231, 168, 0.06));
+    color: var(--green);
+  }
+
+  /* intake panel */
+  .intake-panel {
+    padding: 16px 20px; border-top: 1px solid var(--border);
+  }
+  .intake-panel-head {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 10px; margin-bottom: 12px;
+  }
+  .intake-panel-title {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-muted);
+  }
+  .intake-panel select {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    padding: 6px 10px; width: auto; min-width: 180px;
+  }
+  .intake-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px;
+  }
+  @media (max-width: 480px) { .intake-grid { grid-template-columns: 1fr; } }
+  .intake-grid label { font-size: 10px; letter-spacing: 0.15em; }
+  .intake-notes textarea {
+    min-height: 60px; resize: vertical; font-family: 'Inter', sans-serif; font-size: 13px;
+  }
+  .intake-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+  /* aid station editor */
+  .editor {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px; padding: 18px 20px; margin-bottom: 22px;
+  }
+  .editor.collapsed .editor-body { display: none; }
+  .editor-head {
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer; user-select: none;
+  }
+  .editor-title {
+    font-family: 'Fraunces', serif; font-size: 18px; font-weight: 600;
+  }
+  .editor-toggle {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--text-muted);
+  }
+  .editor-toggle::before { content: '▼ '; }
+  .editor.collapsed .editor-toggle::before { content: '▶ '; }
+  .editor-body { margin-top: 16px; }
+  .editor-warn {
+    background: rgba(245, 196, 81, 0.08); border: 1px solid rgba(245, 196, 81, 0.4);
+    color: var(--yellow); padding: 10px 12px; border-radius: 4px;
+    font-size: 11px; margin-bottom: 12px;
+  }
+  table.aid-list {
+    width: 100%; border-collapse: collapse;
+  }
+  table.aid-list th {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-muted);
+    text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border);
+    font-weight: 500;
+  }
+  table.aid-list td { padding: 6px 6px; border-bottom: 1px solid var(--border); }
+  table.aid-list td:last-child { width: 36px; text-align: right; }
+  table.aid-list input { padding: 8px 10px; font-size: 12px; }
+  .add-row {
+    background: transparent; border: 1px dashed var(--border-bright);
+    color: var(--text-dim); padding: 10px 14px; border-radius: 4px;
+    cursor: pointer; width: 100%;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 0.1em; text-transform: uppercase; margin-top: 8px;
+  }
+  .add-row:hover { color: var(--accent); border-color: var(--accent); }
+  .row-del {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-muted); cursor: pointer;
+    width: 30px; height: 30px; border-radius: 3px;
+    font-size: 15px; line-height: 1;
+  }
+  .row-del:hover { color: var(--red); border-color: var(--red); }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--bg-card); border: 1px solid var(--border-bright);
+    color: var(--text); padding: 10px 16px; border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    z-index: 50;
+  }
+  .toast.error { color: var(--red); border-color: var(--red); }
+  .toast.ok { color: var(--green); border-color: rgba(110,231,168,0.4); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header class="site" style="margin-bottom: 18px;">
+  <div class="brand">
+    <div class="brand-meta">
+      <span>Pit Board</span><span>·</span>
+      <a href="#" id="back-link" style="color: inherit; text-decoration: none;">← Race</a>
+    </div>
+    <h1 class="site" id="race-title" style="font-size: 28px;">Loading…</h1>
+  </div>
+</header>
+
+<section class="conn" id="conn">
+  <div class="conn-status">
+    <span class="status-dot" id="conn-dot"></span>
+    <span class="conn-text" id="conn-text">Not connected · button presses will fail until you connect.</span>
+    <button class="btn" id="conn-toggle">Setup</button>
+  </div>
+  <div class="conn-form" id="conn-form" hidden>
+    <div class="row"><label>Token</label><input type="password" id="cfg-token" placeholder="github_pat_..." autocomplete="off" /></div>
+    <div class="row"><label>Owner</label><input type="text" id="cfg-owner" autocomplete="off" /></div>
+    <div class="row"><label>Repo</label><input type="text" id="cfg-repo" autocomplete="off" /></div>
+    <div class="row"><label>Branch</label><input type="text" id="cfg-branch" value="main" autocomplete="off" /></div>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <button class="btn primary" id="cfg-save">Connect</button>
+      <button class="btn" id="cfg-disconnect">Disconnect</button>
+    </div>
+  </div>
+</section>
+
+<div id="error" class="error-banner" style="display:none;"></div>
+
+<section id="runners" class="runners"></section>
+
+<!-- Aid station editor (segments mode) -->
+<section class="editor collapsed" id="aid-editor" style="display:none;">
+  <div class="editor-head" id="aid-editor-head">
+    <div class="editor-title">Aid stations</div>
+    <span class="editor-toggle">Edit</span>
+  </div>
+  <div class="editor-body">
+    <div class="editor-warn" id="aid-warn" style="display:none;"></div>
+    <table class="aid-list">
+      <thead>
+        <tr><th>#</th><th>Name</th><th>Cum mile</th><th>Arrive cutoff (h)</th><th></th></tr>
+      </thead>
+      <tbody id="aid-rows"></tbody>
+    </table>
+    <button class="add-row" type="button" id="add-aid">+ Add aid station</button>
+    <div style="margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;">
+      <button class="btn" id="aid-reload">Reset</button>
+      <button class="btn primary" id="aid-save">Save changes</button>
+    </div>
+  </div>
+</section>
+
+<footer class="site">
+  <span>Pit times stored in this race's data.json</span>
+  <span id="last-updated">—</span>
+</footer>
+
+</div>
+
+<div id="toast" style="display:none;"></div>
+
+<script src="lib/race-core.js"></script>
+<script>
+  const slug = Race.qs('id');
+  if (!slug) { window.location = 'index.html'; }
+
+  document.getElementById('back-link').href = `race.html?id=${encodeURIComponent(slug)}`;
+
+  const CONFIG_PATH = `races/${slug}/config.json`;
+  const DATA_PATH   = `races/${slug}/data.json`;
+
+  let cfg = null, data = null;
+  let editingAid = null; // local editable copy of aid stations
+  let stickyIntakeLegByRunner = {}; // runnerId -> selected legIndex
+
+  // ---------- toast ----------
+  function toast(text, kind) {
+    const t = document.getElementById('toast');
+    t.className = 'toast' + (kind ? ' ' + kind : '');
+    t.textContent = text;
+    t.style.display = '';
+    clearTimeout(toast._h);
+    toast._h = setTimeout(() => { t.style.display = 'none'; }, 3000);
+  }
+
+  // ---------- connection ----------
+  function renderConnStatus() {
+    const c = Race.config.load();
+    const dot = document.getElementById('conn-dot');
+    const txt = document.getElementById('conn-text');
+    if (c && c.token) {
+      const masked = c.token.length > 8 ? c.token.slice(0, 4) + '…' + c.token.slice(-4) : '••••';
+      dot.className = 'status-dot connected';
+      txt.innerHTML = `Connected · <strong>${c.owner}/${c.repo}</strong> @ <strong>${c.branch}</strong> · ${masked}`;
+    } else {
+      dot.className = 'status-dot';
+      txt.textContent = 'Not connected · button presses will fail until you connect.';
+    }
+  }
+
+  function fillConnForm() {
+    const c = Race.config.load() || Race.config.detectDefaults();
+    document.getElementById('cfg-token').value = c.token || '';
+    document.getElementById('cfg-owner').value = c.owner || '';
+    document.getElementById('cfg-repo').value  = c.repo || '';
+    document.getElementById('cfg-branch').value = c.branch || 'main';
+  }
+
+  async function saveConfigFromForm() {
+    const c = {
+      token: document.getElementById('cfg-token').value.trim(),
+      owner: document.getElementById('cfg-owner').value.trim(),
+      repo: document.getElementById('cfg-repo').value.trim(),
+      branch: document.getElementById('cfg-branch').value.trim() || 'main'
+    };
+    if (!c.token || !c.owner || !c.repo) { alert('Token, owner, and repo are required.'); return; }
+    const btn = document.getElementById('cfg-save');
+    const orig = btn.textContent;
+    btn.textContent = 'Testing…'; btn.disabled = true;
+    try {
+      await Race.gh.getFile(c, CONFIG_PATH);
+      Race.config.save({ ...(Race.config.load() || {}), ...c });
+      btn.textContent = 'Connected ✓';
+      document.getElementById('conn-form').hidden = true;
+      renderConnStatus();
+      await load();
+    } catch (err) {
+      alert(`Could not connect:\n${err.message}`);
+    } finally {
+      btn.disabled = false;
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    }
+  }
+
+  function disconnectConfig() {
+    if (!confirm('Disconnect and remove the stored token from this device?')) return;
+    Race.config.clear();
+    renderConnStatus();
+  }
+
+  // ---------- press button (sign in/out) ----------
+  async function press(runnerId) {
+    if (!Race.config.has()) { toast('Connect to GitHub first.', 'error'); openConnForm(); return; }
+    const runner = (data.runners || []).find(r => r.id === runnerId);
+    if (!runner) { toast(`Runner "${runnerId}" not in data.json`, 'error'); return; }
+    const next = Race.compute.nextActionFor(runner, cfg);
+    if (!next.nextAction) { toast(`${runnerId} has finished.`, 'ok'); return; }
+    const now = new Date().toISOString();
+
+    // Optimistic local update
+    let legEntry = (runner.legs || []).find(l => l.index === next.nextLegIndex);
+    if (!legEntry) {
+      legEntry = { index: next.nextLegIndex };
+      runner.legs = (runner.legs || []).concat([legEntry]).sort((a, b) => a.index - b.index);
+    }
+    legEntry[next.nextAction === 'out' ? 'startTime' : 'endTime'] = now;
+    render();
+
+    // Commit
+    try {
+      await Race.gh.mutateJson(Race.config.load(), DATA_PATH, (remote) => {
+        const r = (remote.runners || []).find(x => x.id === runnerId);
+        if (!r) throw new Error(`Runner "${runnerId}" not in remote data.json`);
+        r.legs = r.legs || [];
+        let leg = r.legs.find(l => l.index === next.nextLegIndex);
+        if (!leg) { leg = { index: next.nextLegIndex }; r.legs.push(leg); r.legs.sort((a, b) => a.index - b.index); }
+        const field = next.nextAction === 'out' ? 'startTime' : 'endTime';
+        if (leg[field] === now) return remote; // already applied
+        leg[field] = now;
+        remote.lastUpdated = new Date().toISOString();
+        return remote;
+      }, `pit: ${runner.name || runnerId} sign-${next.nextAction} leg ${next.nextLegIndex}`);
+      toast(`Saved · ${next.nextAction === 'out' ? 'out' : 'in'} · leg ${next.nextLegIndex}`, 'ok');
+    } catch (err) {
+      toast(`Save failed: ${err.message}`, 'error');
+    }
+    await load();
+  }
+
+  // ---------- edit event time ----------
+  async function editEventTime(runnerId, legIndex, field) {
+    const runner = (data.runners || []).find(r => r.id === runnerId);
+    const leg = runner && (runner.legs || []).find(l => l.index === legIndex);
+    if (!leg || !leg[field]) return;
+    const cur = new Date(leg[field]);
+    const pad = n => String(n).padStart(2, '0');
+    const input = prompt(
+      `Edit ${field} (24h, HH:MM or HH:MM:SS):`,
+      `${pad(cur.getHours())}:${pad(cur.getMinutes())}:${pad(cur.getSeconds())}`
+    );
+    if (!input) return;
+    const m = input.trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (!m) { alert('Bad format. Use HH:MM or HH:MM:SS.'); return; }
+    const next = new Date(cur);
+    next.setHours(+m[1], +m[2], +(m[3] || 0), 0);
+    const iso = next.toISOString();
+    try {
+      await Race.gh.mutateJson(Race.config.load(), DATA_PATH, (remote) => {
+        const r = (remote.runners || []).find(x => x.id === runnerId);
+        const lg = r && (r.legs || []).find(l => l.index === legIndex);
+        if (!lg) throw new Error('Leg not found');
+        lg[field] = iso;
+        remote.lastUpdated = new Date().toISOString();
+        return remote;
+      }, `pit: edit ${runnerId} leg ${legIndex} ${field}`);
+      toast('Time saved', 'ok');
+      await load();
+    } catch (err) { toast(`Save failed: ${err.message}`, 'error'); }
+  }
+
+  async function deleteLastEvent(runnerId) {
+    if (!confirm('Undo the last sign-in/out for this runner?')) return;
+    const runner = (data.runners || []).find(r => r.id === runnerId);
+    if (!runner || !runner.legs?.length) return;
+    const sorted = runner.legs.slice().sort((a, b) => a.index - b.index);
+    const last = sorted[sorted.length - 1];
+    // Pick the field with the later timestamp; if only one is set, clear that.
+    const hasIn  = !!last.endTime;
+    const hasOut = !!last.startTime;
+    let field, deleteWholeLeg = false;
+    if (hasIn && hasOut) field = 'endTime';
+    else if (hasOut) { field = 'startTime'; deleteWholeLeg = true; }
+    else return;
+
+    try {
+      await Race.gh.mutateJson(Race.config.load(), DATA_PATH, (remote) => {
+        const r = (remote.runners || []).find(x => x.id === runnerId);
+        const idx = (r.legs || []).findIndex(l => l.index === last.index);
+        if (idx < 0) return remote;
+        if (deleteWholeLeg) r.legs.splice(idx, 1);
+        else delete r.legs[idx][field];
+        remote.lastUpdated = new Date().toISOString();
+        return remote;
+      }, `pit: undo ${runnerId} leg ${last.index}`);
+      toast('Undone', 'ok');
+      await load();
+    } catch (err) { toast(`Undo failed: ${err.message}`, 'error'); }
+  }
+
+  // ---------- intake editor ----------
+  async function saveIntake(runnerId) {
+    const sel = document.querySelector(`select[data-intake-leg][data-runner="${runnerId}"]`);
+    const legIndex = sel ? +sel.value : null;
+    if (!legIndex) return;
+    const card = document.querySelector(`.runner[data-runner="${runnerId}"]`);
+    const get = name => card.querySelector(`[data-intake="${name}"]`).value.trim();
+    const cal    = get('calories');
+    const fluid  = get('fluidOz');
+    const sodium = get('sodiumMg');
+    const notes  = get('notes');
+    const issues = get('issues');
+    const meds   = get('meds');
+    const gear   = get('gearChanges');
+
+    try {
+      await Race.gh.mutateJson(Race.config.load(), DATA_PATH, (remote) => {
+        const r = (remote.runners || []).find(x => x.id === runnerId);
+        if (!r) throw new Error('Runner missing');
+        const leg = (r.legs || []).find(l => l.index === legIndex);
+        if (!leg) throw new Error('Leg missing');
+        if (cal    !== '') leg.calories  = parseFloat(cal);    else delete leg.calories;
+        if (fluid  !== '') leg.fluidOz   = parseFloat(fluid);  else delete leg.fluidOz;
+        if (sodium !== '') leg.sodiumMg  = parseFloat(sodium); else delete leg.sodiumMg;
+        if (notes  !== '') leg.notes      = notes;             else delete leg.notes;
+        if (issues !== '') leg.issues     = issues;            else delete leg.issues;
+        if (meds   !== '') leg.meds       = meds;              else delete leg.meds;
+        if (gear   !== '') leg.gearChanges = gear;             else delete leg.gearChanges;
+        remote.lastUpdated = new Date().toISOString();
+        return remote;
+      }, `pit: intake ${runnerId} leg ${legIndex}`);
+      toast(`Intake saved · leg ${legIndex}`, 'ok');
+      await load();
+    } catch (err) { toast(`Save failed: ${err.message}`, 'error'); }
+  }
+
+  // ---------- render ----------
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function escapeAttr(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  }
+
+  function whereLine(runner, next) {
+    if (next.state === 'idle') {
+      const first = Race.course.legAt(cfg, 1);
+      if (!first) return 'Race not configured yet';
+      return cfg.courseType === 'loops'
+        ? `Ready to start Lap 1`
+        : `Ready: <strong>${escapeHtml(first.fromAid || 'Start')}</strong> <span class="arrow">→</span> <strong>${escapeHtml(first.toAid || '?')}</strong>`;
+    }
+    if (next.state === 'finished') return 'Finished';
+    const def = Race.course.legAt(cfg, next.currentLegIndex);
+    if (!def) return `Leg ${next.currentLegIndex}`;
+    if (next.state === 'on-course') {
+      return cfg.courseType === 'loops'
+        ? `On course: <strong>Lap ${next.currentLegIndex}</strong>`
+        : `On course: <strong>${escapeHtml(def.fromAid || '')}</strong> <span class="arrow">→</span> <strong>${escapeHtml(def.toAid || '')}</strong>`;
+    }
+    // in-pit
+    const nextDef = Race.course.legAt(cfg, next.nextLegIndex);
+    return cfg.courseType === 'loops'
+      ? `In pit · next: <strong>Lap ${next.nextLegIndex}</strong>`
+      : `At <strong>${escapeHtml(def.toAid || 'aid')}</strong> · next: <strong>${escapeHtml(nextDef?.toAid || '?')}</strong>`;
+  }
+
+  function renderRunner(runner) {
+    const next = Race.compute.nextActionFor(runner, cfg);
+    let stateClass = next.state === 'on-course' ? 'course' :
+                     next.state === 'in-pit'    ? 'pit'    :
+                     next.state === 'finished'  ? 'done'   : 'idle';
+    let stateLabel = next.state === 'on-course' ? 'On Course' :
+                     next.state === 'in-pit'    ? 'In Pit'    :
+                     next.state === 'finished'  ? 'Finished'  : 'Not Started';
+
+    let buttonAction = next.nextAction;
+    let buttonLabel = '—', buttonDisabled = false;
+    if (next.state === 'finished') {
+      buttonLabel = 'Finished'; buttonDisabled = true;
+    } else if (next.state === 'on-course') {
+      const def = Race.course.legAt(cfg, next.currentLegIndex);
+      buttonLabel = cfg.courseType === 'loops'
+        ? `Sign In · End Lap ${next.currentLegIndex}`
+        : `Sign In at ${def?.toAid || 'aid'}`;
+    } else if (next.state === 'in-pit') {
+      const def = Race.course.legAt(cfg, next.nextLegIndex);
+      buttonLabel = cfg.courseType === 'loops'
+        ? `Sign Out · Start Lap ${next.nextLegIndex}`
+        : `Sign Out · ${def?.fromAid || '?'} → ${def?.toAid || '?'}`;
+    } else {
+      const def = Race.course.legAt(cfg, 1);
+      buttonLabel = cfg.courseType === 'loops'
+        ? `Sign Out · Start Lap 1`
+        : `Sign Out · Start (${def?.toAid || 'next aid'})`;
+    }
+
+    const since = next.lastTs || '';
+    const timerLabel = next.state === 'on-course' ? 'On course for'
+                     : next.state === 'in-pit'    ? 'In pit for'
+                     : next.state === 'finished'  ? 'Total since start' : 'Awaiting start';
+
+    // Intake panel: list completed legs (with startTime+endTime) for editing.
+    const completedLegs = (runner.legs || []).filter(l => l.startTime && l.endTime).sort((a, b) => b.index - a.index);
+    const stickyIdx = stickyIntakeLegByRunner[runner.id];
+    const selectedLegIdx = (stickyIdx && completedLegs.find(l => l.index === stickyIdx))
+      ? stickyIdx
+      : (completedLegs[0]?.index || null);
+    const selectedLeg = completedLegs.find(l => l.index === selectedLegIdx);
+
+    const legOptions = completedLegs.map(l => {
+      const def = Race.course.legAt(cfg, l.index);
+      const labelText = cfg.courseType === 'segments' && def?.toAid
+        ? `Leg ${l.index} · arr. ${def.toAid}` : `Lap ${l.index}`;
+      return `<option value="${l.index}" ${l.index === selectedLegIdx ? 'selected' : ''}>${escapeHtml(labelText)}</option>`;
+    }).join('');
+
+    const intakePanel = completedLegs.length === 0 ? '' : `
+      <div class="intake-panel">
+        <div class="intake-panel-head">
+          <span class="intake-panel-title">Intake / notes</span>
+          <select data-intake-leg data-runner="${runner.id}">${legOptions}</select>
+        </div>
+        <div class="intake-grid">
+          <label class="field">
+            <span class="lbl">Calories</span>
+            <input type="number" data-intake="calories" min="0" step="10" value="${selectedLeg?.calories ?? ''}" />
+          </label>
+          <label class="field">
+            <span class="lbl">Fluid oz</span>
+            <input type="number" data-intake="fluidOz" min="0" step="1" value="${selectedLeg?.fluidOz ?? ''}" />
+          </label>
+          <label class="field">
+            <span class="lbl">Sodium mg</span>
+            <input type="number" data-intake="sodiumMg" min="0" step="50" value="${selectedLeg?.sodiumMg ?? ''}" />
+          </label>
+        </div>
+        <label class="field intake-notes">
+          <span class="lbl">Notes</span>
+          <textarea data-intake="notes">${escapeHtml(selectedLeg?.notes ?? '')}</textarea>
+        </label>
+        <div class="grid-3" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+          <label class="field">
+            <span class="lbl">Issues</span>
+            <input type="text" data-intake="issues" value="${escapeAttr(selectedLeg?.issues ?? '')}" />
+          </label>
+          <label class="field">
+            <span class="lbl">Meds</span>
+            <input type="text" data-intake="meds" value="${escapeAttr(selectedLeg?.meds ?? '')}" />
+          </label>
+          <label class="field">
+            <span class="lbl">Gear</span>
+            <input type="text" data-intake="gearChanges" value="${escapeAttr(selectedLeg?.gearChanges ?? '')}" />
+          </label>
+        </div>
+        <div class="intake-actions">
+          <button class="btn primary" data-action="save-intake" data-runner="${runner.id}">Save intake</button>
+          <button class="btn" data-action="edit-time" data-runner="${runner.id}" data-leg="${selectedLeg?.index || ''}" data-field="startTime">Edit start time</button>
+          <button class="btn" data-action="edit-time" data-runner="${runner.id}" data-leg="${selectedLeg?.index || ''}" data-field="endTime">Edit end time</button>
+        </div>
+      </div>
+    `;
+
+    return `
+      <article class="runner ${stateClass}" data-runner="${runner.id}">
+        <div class="runner-head">
+          <div class="runner-name">${escapeHtml(runner.name)}</div>
+          <div class="state-badge state-${stateClass}">${stateLabel}</div>
+        </div>
+        <div class="where">${whereLine(runner, next)}</div>
+        <div class="state-timer" data-since="${since}">
+          <span class="label">${timerLabel}</span>
+          <span class="value runner-timer">—</span>
+        </div>
+        <button class="big-btn ${buttonAction || ''}" data-action="press" data-runner="${runner.id}" ${buttonDisabled ? 'disabled' : ''}>${escapeHtml(buttonLabel)}</button>
+        <div style="display: flex; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--bg-elevated);">
+          <button class="btn" data-action="undo" data-runner="${runner.id}">Undo last</button>
+        </div>
+        ${intakePanel}
+      </article>
+    `;
+  }
+
+  function render() {
+    if (!cfg || !data) return;
+    const runnersById = new Map((cfg.runners || []).map(r => [r.id, r]));
+    const merged = (cfg.runners || []).map(r => {
+      const dr = (data.runners || []).find(d => d.id === r.id) || { id: r.id, legs: [] };
+      return { ...r, ...dr };
+    });
+    document.getElementById('runners').innerHTML = merged.map(renderRunner).join('');
+    document.getElementById('aid-editor').style.display = cfg.courseType === 'segments' ? '' : 'none';
+    if (cfg.courseType === 'segments' && !editingAid) {
+      // Initialize the editor with current aid stations
+      editingAid = Race.course.aidStations(cfg).map(a => ({ ...a, arriveCutoffHours: '' }));
+      // Pull arriveCutoffHours from the segment that arrives at each aid
+      const segs = cfg.course?.segments || [];
+      editingAid.forEach((a, i) => {
+        if (i === 0) return;
+        a.arriveCutoffHours = segs[i - 1]?.arriveCutoffHours ?? '';
+      });
+      renderAidEditor();
+    }
+    tick();
+    updateLastUpdatedLabel();
+  }
+
+  function renderAidEditor() {
+    const tbody = document.getElementById('aid-rows');
+    tbody.innerHTML = editingAid.map((a, i) => `
+      <tr>
+        <td style="font-family: 'JetBrains Mono', monospace; color: var(--text-muted); width: 30px;">${i+1}</td>
+        <td><input type="text" data-aid="${i}" data-k="name" value="${escapeAttr(a.name)}" /></td>
+        <td><input type="number" data-aid="${i}" data-k="mileage" value="${a.mileage === '' || a.mileage == null ? '' : a.mileage}" step="0.1" min="0" ${i === 0 ? 'readonly style="opacity:0.6"' : ''} /></td>
+        <td><input type="number" data-aid="${i}" data-k="arriveCutoffHours" value="${a.arriveCutoffHours === '' || a.arriveCutoffHours == null ? '' : a.arriveCutoffHours}" step="0.25" min="0" placeholder="—" ${i === 0 ? 'readonly style="opacity:0.6"' : ''} /></td>
+        <td>${i > 1 ? `<button class="row-del" data-del-aid="${i}" type="button" aria-label="Delete">×</button>` : ''}</td>
+      </tr>
+    `).join('');
+
+    // Show warning if any legs have data
+    const anyLegs = (data.runners || []).some(r => (r.legs || []).some(l => l.startTime || l.endTime));
+    const warn = document.getElementById('aid-warn');
+    if (anyLegs) {
+      warn.style.display = '';
+      warn.textContent = 'This race already has leg data — changing aid station order or mileage may misalign existing legs. Renaming and adjusting cutoffs is safe.';
+    } else {
+      warn.style.display = 'none';
+    }
+  }
+
+  async function saveAidStations() {
+    const aids = editingAid
+      .map(a => ({
+        name: a.name?.trim(),
+        mileage: a.mileage === '' || a.mileage == null ? null : parseFloat(a.mileage),
+        arriveCutoffHours: a.arriveCutoffHours === '' || a.arriveCutoffHours == null ? null : parseFloat(a.arriveCutoffHours)
+      }))
+      .filter(a => a.name && a.mileage != null && !isNaN(a.mileage));
+
+    if (aids.length < 2) { toast('Need at least 2 aid stations.', 'error'); return; }
+    for (let i = 1; i < aids.length; i++) {
+      if (aids[i].mileage <= aids[i - 1].mileage) { toast(`Aid #${i+1} mileage must be > previous.`, 'error'); return; }
+    }
+
+    const newSegments = Race.course.segmentsFromAidStations(aids, cfg.course?.segments || []);
+    try {
+      await Race.gh.mutateJson(Race.config.load(), CONFIG_PATH, (remote) => {
+        remote.course = remote.course || {};
+        remote.course.segments = newSegments;
+        return remote;
+      }, `pit: update aid stations for ${slug}`);
+
+      // Also update races/index.json's totalDistanceMi for accuracy
+      await Race.gh.mutateJson(Race.config.load(), 'races/index.json', (m) => {
+        const e = (m.races || []).find(r => r.slug === slug);
+        if (e) {
+          e.totalDistanceMi = +newSegments.reduce((a, s) => a + (s.distanceMi || 0), 0).toFixed(2);
+          m.lastUpdated = new Date().toISOString();
+        }
+        return m;
+      }, `pit: refresh index totalDistance for ${slug}`);
+
+      toast('Aid stations saved', 'ok');
+      editingAid = null;
+      await load();
+    } catch (err) { toast(`Save failed: ${err.message}`, 'error'); }
+  }
+
+  // ---------- tick / data ----------
+  function tick() {
+    document.querySelectorAll('.runner').forEach(card => {
+      const timerEl = card.querySelector('.state-timer');
+      const valueEl = card.querySelector('.runner-timer');
+      const since = timerEl?.dataset.since;
+      if (!since) { if (valueEl) valueEl.textContent = '—'; return; }
+      const seconds = (Date.now() - new Date(since).getTime()) / 1000;
+      if (valueEl) valueEl.textContent = Race.fmt.duration(seconds);
+    });
+  }
+
+  function updateLastUpdatedLabel() {
+    if (!data) return;
+    const lu = data.lastUpdated
+      ? `Updated ${new Date(data.lastUpdated).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+      : 'Awaiting start';
+    document.getElementById('last-updated').textContent = lu;
+  }
+
+  async function load() {
+    try {
+      const [cfgRes, dataRes] = await Promise.all([
+        fetch(CONFIG_PATH + '?_=' + Date.now(), { cache: 'no-store' }),
+        fetch(DATA_PATH   + '?_=' + Date.now(), { cache: 'no-store' })
+      ]);
+      if (!cfgRes.ok) throw new Error('config.json not found');
+      if (!dataRes.ok) throw new Error('data.json not found');
+      cfg  = await cfgRes.json();
+      data = await dataRes.json();
+      document.title = `Pit · ${cfg.name}`;
+      document.getElementById('race-title').textContent = cfg.name;
+      document.getElementById('error').style.display = 'none';
+      render();
+    } catch (err) {
+      const e = document.getElementById('error');
+      e.style.display = 'block';
+      e.textContent = `Error: ${err.message}`;
+    }
+  }
+
+  // ---------- wire-up ----------
+  function openConnForm() { fillConnForm(); document.getElementById('conn-form').hidden = false; }
+  document.getElementById('conn-toggle').addEventListener('click', () => {
+    const f = document.getElementById('conn-form');
+    if (f.hidden) openConnForm(); else f.hidden = true;
+  });
+  document.getElementById('cfg-save').addEventListener('click', saveConfigFromForm);
+  document.getElementById('cfg-disconnect').addEventListener('click', disconnectConfig);
+
+  document.body.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-action]');
+    if (!t) return;
+    const action = t.dataset.action;
+    if (action === 'press') press(t.dataset.runner);
+    else if (action === 'undo') deleteLastEvent(t.dataset.runner);
+    else if (action === 'save-intake') saveIntake(t.dataset.runner);
+    else if (action === 'edit-time') editEventTime(t.dataset.runner, +t.dataset.leg, t.dataset.field);
+  });
+
+  document.getElementById('runners').addEventListener('change', (e) => {
+    if (e.target.matches('[data-intake-leg]')) {
+      stickyIntakeLegByRunner[e.target.dataset.runner] = +e.target.value;
+      render();
+    }
+  });
+
+  document.getElementById('aid-editor-head').addEventListener('click', () => {
+    document.getElementById('aid-editor').classList.toggle('collapsed');
+  });
+  document.getElementById('add-aid').addEventListener('click', () => {
+    editingAid.push({ name: '', mileage: '', arriveCutoffHours: '' });
+    renderAidEditor();
+  });
+  document.getElementById('aid-rows').addEventListener('input', (e) => {
+    const i = e.target.dataset.aid, k = e.target.dataset.k;
+    if (i == null || !k) return;
+    editingAid[+i][k] = e.target.value;
+  });
+  document.getElementById('aid-rows').addEventListener('click', (e) => {
+    const del = e.target.dataset.delAid;
+    if (del == null) return;
+    editingAid.splice(+del, 1);
+    renderAidEditor();
+  });
+  document.getElementById('aid-reload').addEventListener('click', () => {
+    editingAid = null; render();
+  });
+  document.getElementById('aid-save').addEventListener('click', saveAidStations);
+
+  if (!Race.config.has()) openConnForm();
+  renderConnStatus();
+  load();
+  setInterval(load, 15000);
+  setInterval(tick, 1000);
+  setInterval(updateLastUpdatedLabel, 1000);
+</script>
+
+</body>
+</html>

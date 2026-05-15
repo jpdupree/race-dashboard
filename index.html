@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Race Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lib/race-theme.css">
+<style>
+  .cards {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+  }
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px; overflow: hidden; position: relative;
+    text-decoration: none; color: inherit;
+    display: flex; flex-direction: column;
+    transition: border-color 0.15s ease, transform 0.05s ease;
+  }
+  .card:hover { border-color: var(--border-bright); }
+  .card:active { transform: scale(0.995); }
+  .card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+  }
+  .card.past::before { background: linear-gradient(90deg, var(--text-muted), transparent); }
+  .card-head {
+    padding: 22px 24px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .card-name {
+    font-family: 'Fraunces', serif; font-size: 24px;
+    font-weight: 600; letter-spacing: -0.02em; line-height: 1.15;
+  }
+  .card-loc {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--text-muted); margin-top: 6px; letter-spacing: 0.06em;
+  }
+  .card-body {
+    padding: 16px 24px 20px; flex: 1;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .card-row {
+    display: flex; justify-content: space-between; gap: 10px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  }
+  .card-row .k { color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; font-size: 10px; }
+  .card-row .v { color: var(--text); text-align: right; }
+  .badge {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    padding: 4px 8px; border-radius: 2px; border: 1px solid currentColor;
+  }
+  .badge.loops { color: var(--blue); }
+  .badge.segments { color: var(--accent); }
+  .badge.past { color: var(--text-muted); }
+
+  .empty {
+    background: var(--bg-card); border: 1px dashed var(--border-bright);
+    border-radius: 6px; padding: 48px 32px; text-align: center;
+  }
+  .empty h2 {
+    font-family: 'Fraunces', serif; font-size: 28px;
+    font-weight: 600; letter-spacing: -0.02em; margin-bottom: 8px;
+  }
+  .empty p {
+    color: var(--text-dim); margin-bottom: 24px; line-height: 1.5;
+    max-width: 480px; margin-left: auto; margin-right: auto;
+  }
+  .empty .cta {
+    display: inline-block; padding: 14px 22px;
+    background: var(--accent); color: #1a0a04;
+    font-family: 'JetBrains Mono', monospace; font-weight: 700;
+    font-size: 12px; letter-spacing: 0.15em; text-transform: uppercase;
+    border-radius: 4px; text-decoration: none;
+    border: 1px solid var(--accent);
+  }
+  .empty .cta:hover { background: #ff7d54; }
+
+  .hub-actions {
+    margin-bottom: 28px; display: flex; gap: 12px; flex-wrap: wrap;
+  }
+  .hub-actions a { text-decoration: none; }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="brand">
+    <div class="brand-meta">
+      <span class="pulse"></span>
+      <span>Race Hub</span>
+    </div>
+    <h1 class="site">Race <em>Hub</em></h1>
+  </div>
+</header>
+
+<div id="error" class="error-banner" style="display:none;"></div>
+<div id="body"></div>
+
+<footer class="site">
+  <div id="repo-link">—</div>
+  <div>Templates available · "Use this template" on GitHub</div>
+</footer>
+
+<script src="lib/race-core.js"></script>
+<script>
+  function sortRaces(races) {
+    // Future races (or undated) first, ascending; past races last, descending.
+    const now = Date.now();
+    const upcoming = [], past = [];
+    for (const r of races) {
+      const t = r.startTime ? new Date(r.startTime).getTime() : Infinity;
+      (t >= now - 24*3600*1000 ? upcoming : past).push({ r, t });
+    }
+    upcoming.sort((a, b) => a.t - b.t);
+    past.sort((a, b) => b.t - a.t);
+    return [...upcoming.map(x => x.r), ...past.map(x => x.r)];
+  }
+
+  function isPast(r) {
+    if (!r.startTime) return false;
+    return new Date(r.startTime).getTime() < Date.now() - 36 * 3600 * 1000;
+  }
+
+  function renderCard(r) {
+    const past = isPast(r);
+    const courseLabel = r.courseType === 'loops' ? 'Loops' : 'Segments';
+    const runners = (r.runnerNames || []).join(' · ') || '—';
+    const startDate = r.startTime
+      ? new Date(r.startTime).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' })
+      : '—';
+    const dist = r.totalDistanceMi != null ? `${r.totalDistanceMi} mi` : '—';
+    return `
+      <a class="card ${past ? 'past' : ''}" href="race.html?id=${encodeURIComponent(r.slug)}">
+        <div class="card-head">
+          <div class="card-name">${escapeHtml(r.name)}</div>
+          <div class="card-loc">${escapeHtml(r.location || '')}</div>
+        </div>
+        <div class="card-body">
+          <div class="card-row"><span class="k">Date</span><span class="v">${startDate}</span></div>
+          <div class="card-row"><span class="k">Distance</span><span class="v">${dist}</span></div>
+          <div class="card-row"><span class="k">Course</span><span class="v"><span class="badge ${past ? 'past' : r.courseType}">${courseLabel}</span></span></div>
+          <div class="card-row"><span class="k">Runners</span><span class="v">${escapeHtml(runners)}</span></div>
+        </div>
+      </a>
+    `;
+  }
+
+  function escapeHtml(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  async function load() {
+    try {
+      const res = await fetch('races/index.json?_=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) throw new Error('Could not load races/index.json');
+      const manifest = await res.json();
+      const races = manifest.races || [];
+
+      const body = document.getElementById('body');
+      if (races.length === 0) {
+        body.innerHTML = `
+          <div class="empty">
+            <h2>No races yet</h2>
+            <p>Set up your first race with the wizard — it'll handle the GitHub commits for you, then you'll have a live dashboard and pit board ready for race day.</p>
+            <a class="cta" href="setup.html">Set up a race →</a>
+          </div>
+        `;
+      } else {
+        const sorted = sortRaces(races);
+        body.innerHTML = `
+          <div class="hub-actions">
+            <a class="btn primary" href="setup.html">+ New race</a>
+          </div>
+          <div class="cards">${sorted.map(renderCard).join('')}</div>
+        `;
+      }
+
+      // Repo link for footer
+      const cfg = Race.config.load() || Race.config.detectDefaults();
+      if (cfg.owner && cfg.repo) {
+        document.getElementById('repo-link').innerHTML =
+          `<a href="https://github.com/${cfg.owner}/${cfg.repo}" target="_blank" rel="noopener" style="color: inherit; text-decoration: underline;">${cfg.owner}/${cfg.repo}</a>`;
+      }
+    } catch (err) {
+      const e = document.getElementById('error');
+      e.style.display = 'block';
+      e.textContent = `Error: ${err.message}`;
+    }
+  }
+
+  load();
+</script>
+
+</body>
+</html>

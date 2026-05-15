@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>New Race · Setup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lib/race-theme.css">
+<style>
+  .wrap { max-width: 860px; margin: 0 auto; }
+  .section {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px; padding: 24px 28px; margin-bottom: 20px;
+    position: relative;
+  }
+  .section-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid var(--border);
+    flex-wrap: wrap; gap: 12px;
+  }
+  .section-title {
+    font-family: 'Fraunces', serif; font-size: 20px;
+    font-weight: 600; letter-spacing: -0.01em;
+  }
+  .section-status {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-muted);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text-muted);
+  }
+  .status-dot.connected { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .status-dot.error { background: var(--red); box-shadow: 0 0 8px var(--red); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 600px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+
+  .radio-group { display: flex; gap: 10px; flex-wrap: wrap; }
+  .radio-group label {
+    flex: 1; min-width: 200px; cursor: pointer;
+    padding: 14px 16px; border: 1px solid var(--border-bright);
+    border-radius: 4px; background: var(--bg-elevated);
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .radio-group label:hover { border-color: var(--accent); }
+  .radio-group input[type="radio"] { display: none; }
+  .radio-group input[type="radio"]:checked + .radio-content { color: var(--accent); }
+  .radio-group label:has(input:checked) { border-color: var(--accent); background: var(--accent-glow); }
+  .radio-content .title {
+    display: block; font-weight: 700; font-size: 14px;
+    font-family: 'JetBrains Mono', monospace; letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .radio-content .desc {
+    display: block; font-size: 12px; color: var(--text-dim); margin-top: 6px;
+  }
+
+  table.list {
+    width: 100%; border-collapse: collapse; margin-bottom: 12px;
+  }
+  table.list th {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-muted);
+    text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border);
+    font-weight: 500;
+  }
+  table.list td {
+    padding: 6px 6px; border-bottom: 1px solid var(--border);
+  }
+  table.list td:last-child { width: 36px; text-align: right; }
+  table.list input {
+    padding: 8px 10px; font-size: 12px;
+  }
+  table.list input[type="color"] {
+    height: 36px; padding: 2px; cursor: pointer;
+    width: 100%;
+  }
+  table.list .row-del {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-muted); cursor: pointer;
+    width: 30px; height: 30px; border-radius: 3px;
+    font-size: 15px; line-height: 1;
+  }
+  table.list .row-del:hover { color: var(--red); border-color: var(--red); }
+  .add-row {
+    background: transparent; border: 1px dashed var(--border-bright);
+    color: var(--text-dim); padding: 10px 14px; border-radius: 4px;
+    cursor: pointer; width: 100%;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .add-row:hover { color: var(--accent); border-color: var(--accent); }
+
+  .config-help {
+    font-size: 11px; color: var(--text-dim); line-height: 1.5;
+    background: var(--bg-elevated); padding: 12px; border-radius: 4px;
+    border-left: 2px solid var(--accent); margin-bottom: 14px;
+  }
+  .config-help a { color: var(--accent); }
+
+  .seg-summary {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--text-dim); padding: 10px 12px;
+    background: var(--bg-elevated); border-radius: 4px;
+    margin-bottom: 14px;
+  }
+  .seg-summary strong { color: var(--text); }
+
+  .submit-bar {
+    position: sticky; bottom: 0; z-index: 10;
+    background: linear-gradient(0deg, var(--bg) 60%, transparent);
+    padding: 20px 0 8px; margin: 0 -8px;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 12px;
+  }
+  .submit-bar .left { color: var(--text-dim); font-size: 12px; flex: 1 1 200px; }
+  .submit-bar .right { display: flex; gap: 10px; }
+  .submit-bar .btn { padding: 14px 22px; font-size: 13px; }
+  .progress {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--text-dim); padding: 10px 12px;
+    background: var(--bg-elevated); border-radius: 4px;
+    margin-top: 12px;
+  }
+  .progress.error { color: var(--red); border: 1px solid var(--red); }
+  .progress.ok { color: var(--green); border: 1px solid rgba(110,231,168,0.4); }
+  .progress .step { display: block; margin: 4px 0; }
+  .progress .step.done::before { content: '✓ '; color: var(--green); }
+  .progress .step.pending::before { content: '• '; color: var(--text-muted); }
+  .progress .step.fail::before { content: '✗ '; color: var(--red); }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="brand">
+    <div class="brand-meta">
+      <span>Setup Wizard</span><span>·</span>
+      <a href="index.html" style="color: inherit; text-decoration: none;">← Back to hub</a>
+    </div>
+    <h1 class="site">New <em>Race</em></h1>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div id="error" class="error-banner" style="display:none;"></div>
+
+  <!-- GitHub connection -->
+  <section class="section" id="sec-github">
+    <div class="section-head">
+      <div class="section-title">GitHub connection</div>
+      <div class="section-status">
+        <span class="status-dot" id="gh-dot"></span>
+        <span id="gh-status">Not connected</span>
+      </div>
+    </div>
+    <div class="config-help">
+      The wizard writes <code>config.json</code>, <code>data.json</code> and <code>course.gpx</code> for the new race
+      directly to your hub repo via the GitHub Contents API.
+      Generate a <strong>fine-grained</strong> personal access token at
+      <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a>
+      with <strong>Repository access → Only this repo</strong> and <strong>Contents: Read and write</strong>.
+      The token lives in this device's localStorage and is shared across every race in the hub.
+    </div>
+    <div class="grid-2">
+      <label class="field">
+        <span class="lbl">Token</span>
+        <input type="password" id="cfg-token" placeholder="github_pat_..." autocomplete="off" spellcheck="false" />
+      </label>
+      <label class="field">
+        <span class="lbl">Branch</span>
+        <input type="text" id="cfg-branch" value="main" autocomplete="off" spellcheck="false" />
+      </label>
+      <label class="field">
+        <span class="lbl">Owner</span>
+        <input type="text" id="cfg-owner" autocomplete="off" spellcheck="false" />
+      </label>
+      <label class="field">
+        <span class="lbl">Repo</span>
+        <input type="text" id="cfg-repo" autocomplete="off" spellcheck="false" />
+      </label>
+    </div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn primary" type="button" id="btn-connect">Connect</button>
+      <button class="btn" type="button" id="btn-disconnect" style="display:none;">Disconnect</button>
+    </div>
+  </section>
+
+  <!-- Race basics -->
+  <section class="section">
+    <div class="section-head"><div class="section-title">Race</div></div>
+    <label class="field">
+      <span class="lbl">Race name</span>
+      <input type="text" id="race-name" placeholder="e.g. Sangre de Cristo 100" />
+      <span class="hint">Slug: <code id="slug-preview" style="color: var(--text);">—</code></span>
+    </label>
+    <label class="field">
+      <span class="lbl">Location</span>
+      <input type="text" id="race-location" placeholder="Westcliffe, CO" />
+    </label>
+    <label class="field">
+      <span class="lbl">Start date / time (local)</span>
+      <input type="datetime-local" id="race-start" />
+      <span class="hint">Saved with this device's UTC offset baked in.</span>
+    </label>
+    <div class="grid-2">
+      <label class="field">
+        <span class="lbl">Total cutoff (hours)</span>
+        <input type="number" id="race-cutoff" min="1" step="0.25" value="36" />
+      </label>
+      <label class="field">
+        <span class="lbl">Last-leg-start gate (hours, optional)</span>
+        <input type="number" id="race-last-leg-cutoff" min="0" step="0.25" />
+        <span class="hint">Loops only — when the runner must start the final lap.</span>
+      </label>
+    </div>
+  </section>
+
+  <!-- Course type -->
+  <section class="section">
+    <div class="section-head"><div class="section-title">Course type</div></div>
+    <div class="radio-group" id="course-type">
+      <label>
+        <input type="radio" name="ct" value="loops" />
+        <div class="radio-content">
+          <span class="title">Loops</span>
+          <span class="desc">N identical laps from one pit. Bloodroot pattern.</span>
+        </div>
+      </label>
+      <label>
+        <input type="radio" name="ct" value="segments" checked />
+        <div class="radio-content">
+          <span class="title">Segments</span>
+          <span class="desc">Point-to-point legs between aid stations. Sangre pattern.</span>
+        </div>
+      </label>
+    </div>
+
+    <!-- Loops sub-form -->
+    <div id="loops-fields" style="display:none; margin-top: 20px;">
+      <div class="grid-3">
+        <label class="field">
+          <span class="lbl">Loop count</span>
+          <input type="number" id="loop-count" min="1" step="1" value="10" />
+        </label>
+        <label class="field">
+          <span class="lbl">Distance per loop (mi)</span>
+          <input type="number" id="loop-distance" min="0" step="0.1" value="10" />
+        </label>
+        <label class="field">
+          <span class="lbl">Elevation gain per loop (ft, optional)</span>
+          <input type="number" id="loop-gain" min="0" step="1" />
+          <span class="hint">Computed from GPX if uploaded.</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Segments sub-form -->
+    <div id="segments-fields" style="margin-top: 20px;">
+      <div class="seg-summary" id="aid-summary">No aid stations yet. Add the start, every aid, and the finish.</div>
+      <table class="list" id="aid-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Cumulative mile</th>
+            <th>Arrive cutoff (hrs, optional)</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="aid-rows"></tbody>
+      </table>
+      <button type="button" class="add-row" id="add-aid">+ Add aid station</button>
+      <p class="hint" style="margin-top:8px; color: var(--text-muted); font-size:11px;">
+        Per-segment elevation gain/loss is computed from the GPX file you upload below.
+      </p>
+    </div>
+  </section>
+
+  <!-- Runners -->
+  <section class="section">
+    <div class="section-head"><div class="section-title">Runner(s)</div></div>
+    <table class="list" id="runner-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Bib / display</th>
+          <th>Color</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="runner-rows"></tbody>
+    </table>
+    <button type="button" class="add-row" id="add-runner">+ Add runner</button>
+  </section>
+
+  <!-- Intake targets -->
+  <section class="section">
+    <div class="section-head"><div class="section-title">Hourly intake targets</div></div>
+    <div class="grid-3">
+      <label class="field">
+        <span class="lbl">Calories / hr</span>
+        <input type="number" id="t-cal" min="0" step="10" value="250" />
+      </label>
+      <label class="field">
+        <span class="lbl">Fluid oz / hr</span>
+        <input type="number" id="t-fluid" min="0" step="1" value="20" />
+      </label>
+      <label class="field">
+        <span class="lbl">Sodium mg / hr</span>
+        <input type="number" id="t-sodium" min="0" step="50" value="500" />
+      </label>
+    </div>
+  </section>
+
+  <!-- GPX -->
+  <section class="section">
+    <div class="section-head"><div class="section-title">Course GPX (optional)</div></div>
+    <input type="file" id="gpx-file" accept=".gpx,application/gpx+xml,text/xml" />
+    <p class="hint" style="margin-top:8px; color: var(--text-muted); font-size:11px;" id="gpx-status">
+      Drives the map, elevation profile, and per-segment elevation totals.
+    </p>
+  </section>
+
+  <div class="submit-bar">
+    <div class="left">Writes <code id="dest-preview">races/&lt;slug&gt;/</code> and updates <code>races/index.json</code>.</div>
+    <div class="right">
+      <a class="btn" href="index.html">Cancel</a>
+      <button class="btn primary" type="button" id="btn-submit">Create race</button>
+    </div>
+  </div>
+
+  <div id="progress" class="progress" style="display:none;"></div>
+
+</div>
+
+<script src="lib/race-core.js"></script>
+<script>
+  const DEFAULT_COLORS = ['#c44a18', '#1f5e8a', '#3a8a3a', '#8a3a5e', '#8a5e3a', '#5e3a8a'];
+
+  // ---------- state ----------
+  const state = {
+    courseType: 'segments',
+    aidStations: [
+      { name: 'Start', mileage: 0, arriveCutoffHours: '' },
+      { name: 'Finish', mileage: '', arriveCutoffHours: '' }
+    ],
+    runners: [
+      { name: '', bib: '', color: DEFAULT_COLORS[0] }
+    ],
+    gpxText: null
+  };
+
+  // ---------- GitHub config UI ----------
+  function renderGhStatus() {
+    const cfg = Race.config.load();
+    const dot = document.getElementById('gh-dot');
+    const txt = document.getElementById('gh-status');
+    const disc = document.getElementById('btn-disconnect');
+    if (cfg && cfg.token && cfg.owner && cfg.repo) {
+      dot.className = 'status-dot connected';
+      const masked = cfg.token.length > 8 ? cfg.token.slice(0, 4) + '…' + cfg.token.slice(-4) : '••••';
+      txt.innerHTML = `Connected · ${cfg.owner}/${cfg.repo} @ ${cfg.branch} · ${masked}`;
+      disc.style.display = '';
+    } else {
+      dot.className = 'status-dot';
+      txt.textContent = 'Not connected';
+      disc.style.display = 'none';
+    }
+  }
+
+  function fillGhForm() {
+    const cfg = Race.config.load() || Race.config.detectDefaults();
+    document.getElementById('cfg-token').value = cfg.token || '';
+    document.getElementById('cfg-owner').value = cfg.owner || '';
+    document.getElementById('cfg-repo').value = cfg.repo || '';
+    document.getElementById('cfg-branch').value = cfg.branch || 'main';
+  }
+
+  async function onConnect() {
+    const cfg = {
+      token: document.getElementById('cfg-token').value.trim(),
+      owner: document.getElementById('cfg-owner').value.trim(),
+      repo: document.getElementById('cfg-repo').value.trim(),
+      branch: document.getElementById('cfg-branch').value.trim() || 'main'
+    };
+    if (!cfg.token || !cfg.owner || !cfg.repo) {
+      alert('Token, owner, and repo are required.');
+      return;
+    }
+    const btn = document.getElementById('btn-connect');
+    const orig = btn.textContent;
+    btn.textContent = 'Testing…'; btn.disabled = true;
+    try {
+      // Try fetching the races index — it'll either exist or 404; both prove auth works.
+      const r = await Race.gh.getFile(cfg, 'races/index.json');
+      // 404 is fine (we'll create it). Anything else that didn't throw is fine too.
+      const existing = Race.config.load();
+      Race.config.save({ ...(existing || {}), ...cfg });
+      btn.textContent = 'Connected ✓';
+      renderGhStatus();
+    } catch (err) {
+      alert(`Could not connect:\n${err.message}\n\nCheck token scope (Contents: Read and write) and owner/repo.`);
+    } finally {
+      btn.disabled = false;
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    }
+  }
+
+  function onDisconnect() {
+    if (!confirm('Disconnect and remove the stored token from this device?')) return;
+    Race.config.clear();
+    fillGhForm();
+    renderGhStatus();
+  }
+
+  // ---------- course type ----------
+  function setCourseType(t) {
+    state.courseType = t;
+    document.getElementById('loops-fields').style.display = t === 'loops' ? '' : 'none';
+    document.getElementById('segments-fields').style.display = t === 'segments' ? '' : 'none';
+  }
+
+  // ---------- aid stations ----------
+  function renderAidRows() {
+    const tbody = document.getElementById('aid-rows');
+    tbody.innerHTML = state.aidStations.map((a, i) => `
+      <tr>
+        <td style="font-family: 'JetBrains Mono', monospace; color: var(--text-muted); width: 30px;">${i+1}</td>
+        <td><input type="text" data-aid="${i}" data-k="name" value="${escapeAttr(a.name)}" placeholder="Aid name" /></td>
+        <td><input type="number" data-aid="${i}" data-k="mileage" value="${a.mileage === '' || a.mileage == null ? '' : a.mileage}" step="0.1" min="0" placeholder="0.0" ${i === 0 ? 'readonly style="opacity:0.6"' : ''} /></td>
+        <td><input type="number" data-aid="${i}" data-k="arriveCutoffHours" value="${a.arriveCutoffHours === '' || a.arriveCutoffHours == null ? '' : a.arriveCutoffHours}" step="0.25" min="0" placeholder="—" ${i === 0 ? 'readonly style="opacity:0.6"' : ''} /></td>
+        <td>${i > 1 ? `<button type="button" class="row-del" data-del-aid="${i}" aria-label="Delete">×</button>` : ''}</td>
+      </tr>
+    `).join('');
+    renderAidSummary();
+  }
+
+  function renderAidSummary() {
+    const aids = state.aidStations.filter(a => a.name && (a.mileage !== '' && a.mileage != null));
+    const n = aids.length;
+    const last = aids[n - 1];
+    const total = last ? last.mileage : 0;
+    document.getElementById('aid-summary').innerHTML =
+      n < 2 ? `Need at least 2 aid stations.`
+        : `<strong>${n - 1}</strong> segments · <strong>${(+total).toFixed(1)} mi</strong> total`;
+  }
+
+  // ---------- runners ----------
+  function renderRunnerRows() {
+    const tbody = document.getElementById('runner-rows');
+    tbody.innerHTML = state.runners.map((r, i) => `
+      <tr>
+        <td><input type="text" data-runner="${i}" data-k="name" value="${escapeAttr(r.name)}" placeholder="Runner name" /></td>
+        <td><input type="text" data-runner="${i}" data-k="bib" value="${escapeAttr(r.bib)}" placeholder="e.g. #42 or display label" /></td>
+        <td><input type="color" data-runner="${i}" data-k="color" value="${r.color || DEFAULT_COLORS[0]}" /></td>
+        <td>${i > 0 ? `<button type="button" class="row-del" data-del-runner="${i}" aria-label="Delete">×</button>` : ''}</td>
+      </tr>
+    `).join('');
+  }
+
+  // ---------- helpers ----------
+  function escapeAttr(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // Convert datetime-local to ISO with this device's tz offset.
+  function localDtToIso(local) {
+    if (!local) return null;
+    const d = new Date(local);
+    const off = -d.getTimezoneOffset();
+    const sign = off >= 0 ? '+' : '-';
+    const abs = Math.abs(off);
+    const pad = n => String(n).padStart(2, '0');
+    const pad3 = n => String(n).padStart(3, '0').slice(0, 2);
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00${sign}${pad(Math.floor(abs/60))}:${pad(abs%60)}`;
+  }
+
+  function updateSlug() {
+    const name = document.getElementById('race-name').value;
+    document.getElementById('slug-preview').textContent = name ? Race.slug(name) : '—';
+    document.getElementById('dest-preview').textContent = name ? `races/${Race.slug(name)}/` : 'races/<slug>/';
+  }
+
+  // ---------- build payload ----------
+  function buildConfig(slug) {
+    const name = document.getElementById('race-name').value.trim();
+    const location = document.getElementById('race-location').value.trim();
+    const startTime = localDtToIso(document.getElementById('race-start').value);
+    const totalHours = parseFloat(document.getElementById('race-cutoff').value);
+    const lastLegStartHours = parseFloat(document.getElementById('race-last-leg-cutoff').value);
+
+    const cfg = {
+      name, location, startTime,
+      courseType: state.courseType,
+      cutoffs: { totalHours },
+      course: {},
+      runners: state.runners
+        .filter(r => r.name.trim())
+        .map(r => ({
+          id: Race.slug(r.name),
+          name: r.name.trim(),
+          bib: r.bib.trim() || r.name.trim(),
+          color: r.color
+        })),
+      targets: {
+        caloriesPerHour: parseFloat(document.getElementById('t-cal').value) || 0,
+        fluidOzPerHour:  parseFloat(document.getElementById('t-fluid').value) || 0,
+        sodiumMgPerHour: parseFloat(document.getElementById('t-sodium').value) || 0
+      }
+    };
+    if (!isNaN(lastLegStartHours)) cfg.cutoffs.lastLegStartHours = lastLegStartHours;
+
+    if (state.courseType === 'loops') {
+      const loopGain = parseFloat(document.getElementById('loop-gain').value);
+      cfg.course = {
+        loopCount: parseInt(document.getElementById('loop-count').value, 10) || 0,
+        loopDistanceMi: parseFloat(document.getElementById('loop-distance').value) || 0
+      };
+      if (!isNaN(loopGain)) cfg.course.loopElevationGainFt = loopGain;
+    } else {
+      const aids = state.aidStations
+        .map(a => ({ ...a, mileage: a.mileage === '' ? null : parseFloat(a.mileage), arriveCutoffHours: a.arriveCutoffHours === '' ? null : parseFloat(a.arriveCutoffHours) }))
+        .filter(a => a.name && a.mileage != null && !isNaN(a.mileage));
+      cfg.course = { segments: Race.course.segmentsFromAidStations(aids) };
+    }
+    return cfg;
+  }
+
+  function buildDataJson(cfg) {
+    return {
+      lastUpdated: new Date().toISOString(),
+      runners: cfg.runners.map(r => ({ id: r.id, legs: [] }))
+    };
+  }
+
+  function buildIndexEntry(cfg, slug) {
+    return {
+      slug,
+      name: cfg.name,
+      location: cfg.location,
+      startTime: cfg.startTime,
+      courseType: cfg.courseType,
+      totalDistanceMi: +Race.course.totalDistanceMi(cfg).toFixed(2),
+      runnerNames: cfg.runners.map(r => r.name)
+    };
+  }
+
+  function validate(cfg, slug) {
+    const errs = [];
+    if (!cfg.name) errs.push('Race name is required.');
+    if (!slug) errs.push('Slug could not be derived from name.');
+    if (!cfg.startTime) errs.push('Start time is required.');
+    if (!cfg.cutoffs.totalHours) errs.push('Total cutoff (hours) is required.');
+    if (!cfg.runners.length) errs.push('At least one runner is required.');
+    if (cfg.courseType === 'loops') {
+      if (!cfg.course.loopCount) errs.push('Loop count is required.');
+      if (!cfg.course.loopDistanceMi) errs.push('Loop distance is required.');
+    } else {
+      if (!cfg.course.segments || cfg.course.segments.length < 1) errs.push('At least one segment (two aid stations) is required.');
+      if (cfg.course.segments && cfg.course.segments.some(s => !(s.distanceMi > 0))) errs.push('Each segment needs a positive distance (check aid station mileages are strictly increasing).');
+    }
+    return errs;
+  }
+
+  // ---------- submit ----------
+  function progressLine(text, cls) {
+    const el = document.getElementById('progress');
+    el.style.display = '';
+    el.className = 'progress' + (cls === 'error' ? ' error' : cls === 'ok' ? ' ok' : '');
+    const line = document.createElement('span');
+    line.className = 'step ' + (cls || 'done');
+    line.textContent = text;
+    el.appendChild(line);
+  }
+  function clearProgress() {
+    const el = document.getElementById('progress');
+    el.innerHTML = ''; el.style.display = 'none';
+  }
+
+  async function onSubmit() {
+    clearProgress();
+    document.getElementById('error').style.display = 'none';
+
+    const cfg = Race.config.load();
+    if (!cfg || !cfg.token) {
+      showError('Connect to GitHub first.');
+      return;
+    }
+
+    const name = document.getElementById('race-name').value.trim();
+    const slug = Race.slug(name);
+    const raceConfig = buildConfig(slug);
+    const errs = validate(raceConfig, slug);
+    if (errs.length) { showError(errs.join(' ')); return; }
+
+    const dataJson = buildDataJson(raceConfig);
+    const indexEntry = buildIndexEntry(raceConfig, slug);
+
+    const submitBtn = document.getElementById('btn-submit');
+    submitBtn.disabled = true;
+    const origLabel = submitBtn.textContent;
+    submitBtn.textContent = 'Creating…';
+
+    try {
+      // Confirm overwrite if races/<slug>/config.json already exists.
+      const probe = await Race.gh.getFile(cfg, `races/${slug}/config.json`);
+      if (!probe.missing) {
+        if (!confirm(`A race already exists at races/${slug}/. Overwrite its config.json and data.json?`)) {
+          submitBtn.disabled = false; submitBtn.textContent = origLabel; return;
+        }
+      }
+
+      progressLine(`Writing races/${slug}/config.json…`);
+      await Race.gh.putJson(cfg, `races/${slug}/config.json`, raceConfig,
+        probe.missing ? null : probe.sha, `hub: create race ${slug} (config)`);
+
+      progressLine(`Writing races/${slug}/data.json…`);
+      const dataProbe = await Race.gh.getFile(cfg, `races/${slug}/data.json`);
+      await Race.gh.putJson(cfg, `races/${slug}/data.json`, dataJson,
+        dataProbe.missing ? null : dataProbe.sha, `hub: create race ${slug} (data)`);
+
+      if (state.gpxText) {
+        progressLine(`Uploading races/${slug}/course.gpx…`);
+        const gpxProbe = await Race.gh.getFile(cfg, `races/${slug}/course.gpx`);
+        await Race.gh.putFile(cfg, `races/${slug}/course.gpx`,
+          state.gpxText, gpxProbe.missing ? null : gpxProbe.sha,
+          `hub: create race ${slug} (course.gpx)`);
+      }
+
+      progressLine(`Updating races/index.json…`);
+      await Race.gh.mutateJson(cfg, 'races/index.json', (data) => {
+        const out = data && Array.isArray(data.races) ? data : { races: [] };
+        out.races = (out.races || []).filter(r => r.slug !== slug);
+        out.races.push(indexEntry);
+        out.lastUpdated = new Date().toISOString();
+        return out;
+      }, `hub: register race ${slug}`);
+
+      progressLine(`Done. Redirecting…`, 'ok');
+      setTimeout(() => {
+        location.href = `race.html?id=${encodeURIComponent(slug)}`;
+      }, 800);
+    } catch (err) {
+      progressLine(err.message || String(err), 'fail');
+      submitBtn.disabled = false; submitBtn.textContent = origLabel;
+    }
+  }
+
+  function showError(msg) {
+    const e = document.getElementById('error');
+    e.style.display = 'block';
+    e.textContent = msg;
+    e.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  // ---------- wire-up ----------
+  document.getElementById('btn-connect').addEventListener('click', onConnect);
+  document.getElementById('btn-disconnect').addEventListener('click', onDisconnect);
+  document.getElementById('btn-submit').addEventListener('click', onSubmit);
+
+  document.getElementById('race-name').addEventListener('input', updateSlug);
+
+  document.querySelectorAll('input[name="ct"]').forEach(r => {
+    r.addEventListener('change', e => setCourseType(e.target.value));
+  });
+
+  document.getElementById('add-aid').addEventListener('click', () => {
+    state.aidStations.push({ name: '', mileage: '', arriveCutoffHours: '' });
+    renderAidRows();
+  });
+  document.getElementById('aid-rows').addEventListener('input', (e) => {
+    const idx = e.target.dataset.aid;
+    const key = e.target.dataset.k;
+    if (idx == null || !key) return;
+    state.aidStations[+idx][key] = e.target.value;
+    renderAidSummary();
+  });
+  document.getElementById('aid-rows').addEventListener('click', (e) => {
+    const del = e.target.dataset.delAid;
+    if (del == null) return;
+    state.aidStations.splice(+del, 1);
+    renderAidRows();
+  });
+
+  document.getElementById('add-runner').addEventListener('click', () => {
+    const i = state.runners.length;
+    state.runners.push({ name: '', bib: '', color: DEFAULT_COLORS[i % DEFAULT_COLORS.length] });
+    renderRunnerRows();
+  });
+  document.getElementById('runner-rows').addEventListener('input', (e) => {
+    const idx = e.target.dataset.runner;
+    const key = e.target.dataset.k;
+    if (idx == null || !key) return;
+    state.runners[+idx][key] = e.target.value;
+  });
+  document.getElementById('runner-rows').addEventListener('click', (e) => {
+    const del = e.target.dataset.delRunner;
+    if (del == null) return;
+    state.runners.splice(+del, 1);
+    renderRunnerRows();
+  });
+
+  document.getElementById('gpx-file').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    const status = document.getElementById('gpx-status');
+    if (!file) { state.gpxText = null; status.textContent = 'Drives the map, elevation profile, and per-segment elevation totals.'; return; }
+    try {
+      const text = await file.text();
+      const pts = Race.gpx.parse(text);
+      const dist = Race.gpx.totalDistanceMi(pts);
+      const elev = Race.gpx.totalElevation(pts);
+      state.gpxText = text;
+      status.style.color = 'var(--green)';
+      status.textContent = `${file.name} · ${pts.length.toLocaleString()} pts · ${dist.toFixed(1)} mi · +${elev.gainFt.toLocaleString()} / -${elev.lossFt.toLocaleString()} ft`;
+    } catch (err) {
+      state.gpxText = null;
+      status.style.color = 'var(--red)';
+      status.textContent = `Could not parse GPX: ${err.message}`;
+    }
+  });
+
+  // ---------- init ----------
+  fillGhForm();
+  renderGhStatus();
+  renderAidRows();
+  renderRunnerRows();
+  setCourseType(state.courseType);
+  updateSlug();
+</script>
+
+</body>
+</html>

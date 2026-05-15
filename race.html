@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Race · Live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lib/race-theme.css">
+<style>
+  .cutoffs {
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: 4px; padding: 18px 24px; margin-bottom: 32px;
+    display: grid; grid-template-columns: auto 1fr auto auto auto;
+    gap: 32px; align-items: center;
+  }
+  @media (max-width: 800px) { .cutoffs { grid-template-columns: 1fr 1fr; gap: 16px; } }
+  .cutoffs-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-muted);
+  }
+  .cutoff-item { display: flex; flex-direction: column; gap: 2px; }
+  .cutoff-item .v { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 700; }
+  .cutoff-item .l { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em; }
+  .cutoff-item.warn .v { color: var(--yellow); }
+  .cutoff-item.danger .v { color: var(--red); }
+
+  .race-clock { text-align: right; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+  .race-clock .label {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-muted);
+  }
+  .race-clock .time {
+    font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 700;
+    color: var(--text); letter-spacing: -0.02em;
+  }
+
+  .runners { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 1100px) { .runners { grid-template-columns: 1fr; } }
+  .runners.single { grid-template-columns: 1fr; max-width: 900px; margin: 0 auto; }
+
+  .runner {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px; overflow: hidden; position: relative;
+  }
+  .runner::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--runner-color, var(--accent)), transparent);
+  }
+  .runner-head {
+    padding: 24px 28px 20px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: flex-end; gap: 16px;
+  }
+  .runner-name {
+    font-family: 'Fraunces', serif; font-size: 32px;
+    font-weight: 600; letter-spacing: -0.02em;
+  }
+  .runner-bib {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--text-muted); letter-spacing: 0.1em;
+    text-transform: uppercase; margin-top: 4px;
+  }
+  .status-badge {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    padding: 6px 10px; border-radius: 2px; border: 1px solid currentColor;
+  }
+  .status-onpace { color: var(--green); }
+  .status-tight { color: var(--yellow); }
+  .status-offpace { color: var(--red); }
+  .status-notstarted { color: var(--text-muted); }
+  .status-finished { color: var(--accent); }
+
+  .stats {
+    display: grid; grid-template-columns: repeat(8, 1fr);
+    border-bottom: 1px solid var(--border);
+  }
+  .stat {
+    padding: 16px 14px; border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 4px;
+    min-width: 0;
+  }
+  .stat:last-child { border-right: none; }
+  .stat.live .value, .stat.live-course .value { color: var(--accent); }
+  .stat.live-pit .value { color: var(--green); }
+  .stat.live-course .label, .stat.live-pit .label {
+    animation: liveBlink 2s ease-in-out infinite;
+  }
+  @keyframes liveBlink {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+  }
+  .stat .label {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    text-transform: uppercase; letter-spacing: 0.18em; color: var(--text-muted);
+  }
+  .stat .value {
+    font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 700;
+    letter-spacing: -0.02em; color: var(--text);
+  }
+  .stat .sub { font-size: 10px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
+
+  @media (max-width: 1400px) {
+    .stats { grid-template-columns: repeat(4, 1fr); }
+    .stat { border-bottom: 1px solid var(--border); }
+    .stat:nth-child(4n) { border-right: none; }
+    .stat:nth-last-child(-n+4) { border-bottom: none; }
+  }
+  @media (max-width: 600px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .stat:nth-child(2n) { border-right: none; }
+    .stat:nth-last-child(-n+2) { border-bottom: none; }
+    .stat { padding: 14px 12px; }
+  }
+
+  .intake { padding: 20px 28px 24px; border-bottom: 1px solid var(--border); }
+  .intake-title {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: 14px;
+  }
+  .intake-row {
+    display: grid; grid-template-columns: 90px 1fr auto auto;
+    gap: 14px; align-items: center; padding: 8px 0;
+  }
+  .intake-row .name { font-size: 13px; color: var(--text-dim); }
+  .bar-track {
+    height: 6px; background: var(--border); border-radius: 3px;
+    overflow: hidden; position: relative;
+  }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+  .bar-fill.good { background: var(--green); }
+  .bar-fill.warn { background: var(--yellow); }
+  .bar-fill.low { background: var(--red); }
+  .intake-row .num {
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    font-weight: 600; text-align: right; min-width: 90px;
+  }
+  .intake-row .target {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--text-muted); min-width: 60px; text-align: right;
+  }
+
+  .legs-section { padding: 20px 28px 28px; }
+  .legs-head {
+    display: flex; justify-content: space-between;
+    align-items: center; margin-bottom: 14px;
+  }
+  .legs-title {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-muted);
+  }
+
+  /* Loops grid (Bloodroot style) */
+  .legs-grid {
+    display: grid; grid-template-columns: repeat(10, 1fr);
+    gap: 6px; margin-bottom: 16px;
+  }
+  @media (max-width: 600px) { .legs-grid { grid-template-columns: repeat(5, 1fr); } }
+  .leg-cell {
+    aspect-ratio: 1; background: var(--bg-elevated);
+    border: 1px solid var(--border); border-radius: 3px;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .leg-cell .n { font-size: 10px; color: var(--text-muted); margin-bottom: 2px; }
+  .leg-cell .t { font-size: 11px; font-weight: 700; }
+  .leg-cell.done { background: rgba(110, 231, 168, 0.08); border-color: rgba(110, 231, 168, 0.4); }
+  .leg-cell.done .t { color: var(--green); }
+  .leg-cell.slow { background: rgba(245, 196, 81, 0.08); border-color: rgba(245, 196, 81, 0.4); }
+  .leg-cell.slow .t { color: var(--yellow); }
+  .leg-cell.danger { background: rgba(255, 89, 89, 0.08); border-color: rgba(255, 89, 89, 0.4); }
+  .leg-cell.danger .t { color: var(--red); }
+  .leg-cell.current { background: var(--accent-glow); border-color: var(--accent); }
+  .leg-cell.current .t { color: var(--accent); }
+
+  /* Segments timeline (Sangre-style) */
+  .seg-list { display: flex; flex-direction: column; }
+  .seg-row {
+    display: grid; grid-template-columns: 32px 1fr 80px 80px 80px;
+    gap: 10px; padding: 10px 8px;
+    border-bottom: 1px solid var(--border);
+    align-items: center; font-size: 12px;
+  }
+  @media (max-width: 700px) {
+    .seg-row { grid-template-columns: 28px 1fr 60px; }
+    .seg-row .col-cut, .seg-row .col-pit { display: none; }
+  }
+  .seg-row:last-child { border-bottom: none; }
+  .seg-row .num { font-family: 'JetBrains Mono', monospace; color: var(--accent); font-weight: 700; }
+  .seg-row .nm { color: var(--text); }
+  .seg-row .nm .meta { color: var(--text-muted); font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+  .seg-row .col-dur, .seg-row .col-cut, .seg-row .col-pit {
+    font-family: 'JetBrains Mono', monospace; text-align: right;
+  }
+  .seg-row .col-dur { color: var(--text); }
+  .seg-row .col-cut { color: var(--text-muted); font-size: 11px; }
+  .seg-row .col-pit { color: var(--text-dim); font-size: 11px; }
+  .seg-row.done { background: rgba(110, 231, 168, 0.05); }
+  .seg-row.done .col-dur { color: var(--green); }
+  .seg-row.current { background: var(--accent-glow); }
+  .seg-row.current .col-dur { color: var(--accent); }
+  .seg-row.current .col-dur::after { content: ' ●'; }
+  .seg-row.danger .col-dur { color: var(--red); }
+
+  /* Leg log */
+  .leglog { border-top: 1px solid var(--border); margin-top: 8px; }
+  .leglog-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 2px 6px;
+    cursor: pointer; user-select: none;
+  }
+  .leglog-head:hover .leglog-toggle { color: var(--accent); }
+  .leglog-head-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); font-weight: 600; }
+  .leglog-toggle { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-muted); }
+  .leglog-toggle::before { content: '▼ '; }
+  .leglog.collapsed .leglog-toggle::before { content: '▶ '; }
+  .leglog.collapsed tr.leg-old, .leglog.collapsed tr.note-old { display: none; }
+  .leglog.collapsed .when-expanded, .leglog:not(.collapsed) .when-collapsed { display: none; }
+  .leglog table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .leglog th {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-muted);
+    text-align: left; padding: 14px 8px 10px; font-weight: 500;
+    border-bottom: 1px solid var(--border);
+  }
+  .leglog th:first-child { padding-left: 0; }
+  .leglog th.num, .leglog td.num { text-align: right; font-family: 'JetBrains Mono', monospace; }
+  .leglog td { padding: 12px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .leglog td:first-child { padding-left: 0; }
+  .leglog tr:last-child td { border-bottom: none; }
+  .leglog .leg-num {
+    font-family: 'Fraunces', serif; font-size: 18px; font-weight: 600;
+    color: var(--accent); width: 30px;
+  }
+  .leglog tr.leg-row:has(+ tr.note-row) td { border-bottom: none; padding-bottom: 6px; }
+  .leglog tr.note-row td {
+    padding: 0 8px 12px 8px; padding-left: 38px;
+    font-size: 11px; color: var(--text-dim); line-height: 1.5;
+    border-bottom: 1px solid var(--border);
+  }
+  .leglog tr.note-row:last-child td { border-bottom: none; }
+  .leglog tr.empty td { color: var(--text-muted); font-style: italic; text-align: center; padding: 24px; }
+
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="brand">
+    <div class="brand-meta">
+      <span class="pulse"></span>
+      <span id="brand-subtitle">Live</span>
+      <span>·</span>
+      <a href="index.html" style="color: inherit; text-decoration: none;">← Hub</a>
+    </div>
+    <h1 class="site" id="race-title">Loading…</h1>
+  </div>
+  <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+    <div class="race-clock">
+      <span class="label">Race Time Elapsed</span>
+      <span class="time" id="elapsed">--:--:--</span>
+    </div>
+    <a class="nav-link" id="lk-pit" href="#">Pit →</a>
+    <a class="nav-link" id="lk-charts" href="#">Charts →</a>
+    <a class="nav-link" id="lk-print" href="#">Print →</a>
+  </div>
+</header>
+
+<div id="error" class="error-banner" style="display:none;"></div>
+<div id="cutoffs" class="cutoffs" style="display:none;"></div>
+<section id="runners" class="runners"></section>
+
+<footer class="site">
+  <div class="legend">
+    <span class="legend-item"><span class="swatch" style="background: var(--green);"></span>On pace</span>
+    <span class="legend-item"><span class="swatch" style="background: var(--yellow);"></span>Tight</span>
+    <span class="legend-item"><span class="swatch" style="background: var(--red);"></span>Off pace</span>
+    <span class="legend-item"><span class="swatch" style="background: var(--accent);"></span>Live</span>
+  </div>
+  <div id="last-updated">—</div>
+</footer>
+
+<script src="lib/race-core.js"></script>
+<script>
+  const REFRESH_MS = 15000;
+  const slug = Race.qs('id');
+  if (!slug) { window.location = 'index.html'; }
+
+  // Update nav links to carry the slug
+  document.getElementById('lk-pit').href    = `pit.html?id=${encodeURIComponent(slug)}`;
+  document.getElementById('lk-charts').href = `charts.html?id=${encodeURIComponent(slug)}`;
+  document.getElementById('lk-print').href  = `print-report.html?id=${encodeURIComponent(slug)}`;
+
+  let cfg = null, data = null;
+  let lastFetchAt = null;
+  const LEGLOG_KEY = `race-${slug}-leglog-collapsed-v1`;
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function intakeClass(actual, target) {
+    if (target === 0) return 'good';
+    const ratio = actual / target;
+    if (ratio >= 0.85) return 'good';
+    if (ratio >= 0.65) return 'warn';
+    return 'low';
+  }
+
+  function statusLabel(s) {
+    return { onpace: 'On Pace', tight: 'Tight', offpace: 'Off Pace', notstarted: 'Not Started', finished: 'Finished' }[s] || s;
+  }
+
+  function loopCellClass(durationSec, status) {
+    if (durationSec == null) return '';
+    if (status === 'onpace' || status === 'finished') return 'done';
+    // Without per-loop reference, fall back to runner overall status.
+    if (status === 'tight') return 'slow';
+    if (status === 'offpace') return 'danger';
+    return 'done';
+  }
+
+  function renderCutoffs() {
+    const start = new Date(cfg.startTime);
+    const cuts = cfg.cutoffs || {};
+    const final = new Date(start.getTime() + (cuts.totalHours || 0) * 3600 * 1000);
+    const day = d => d.toDateString() === start.toDateString() ? '' : ' D2';
+    const fmt = d => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + day(d);
+    const tightHtml = cuts.lastLegStartHours
+      ? `<div class="cutoff-item warn"><span class="v">${fmt(new Date(start.getTime() + cuts.lastLegStartHours * 3600 * 1000))}</span><span class="l">Last leg start · ${cuts.lastLegStartHours}h</span></div>`
+      : '';
+    document.getElementById('cutoffs').style.display = '';
+    document.getElementById('cutoffs').innerHTML = `
+      <span class="cutoffs-label">Cutoffs</span>
+      <div></div>
+      <div class="cutoff-item"><span class="v">${fmt(start)}</span><span class="l">Start</span></div>
+      ${tightHtml}
+      <div class="cutoff-item danger"><span class="v">${fmt(final)}</span><span class="l">Final · ${cuts.totalHours}h</span></div>
+    `;
+  }
+
+  function loopLegCells(runner, c) {
+    const totalLoops = cfg.course?.loopCount || 0;
+    return Array.from({ length: totalLoops }, (_, i) => {
+      const idx1 = i + 1;
+      const dur = c.legDurations[i];
+      const isCurrent = idx1 === c.legsDone + 1 && c.status !== 'notstarted' && c.legsDone < totalLoops;
+      let cls = '';
+      if (dur != null) cls = loopCellClass(dur, c.status);
+      if (isCurrent) cls = 'current';
+      const text = dur != null
+        ? Race.fmt.durationShort(dur)
+        : (isCurrent ? '···' : '—');
+      return `<div class="leg-cell ${cls}"><span class="n">L${idx1}</span><span class="t">${text}</span></div>`;
+    }).join('');
+  }
+
+  function segmentRows(runner, c) {
+    const segs = Race.course.legs(cfg);
+    return segs.map((s, i) => {
+      const entry = (runner.legs || []).find(l => l.index === s.index);
+      const dur = entry && entry.startTime && entry.endTime
+        ? (new Date(entry.endTime) - new Date(entry.startTime)) / 1000 : null;
+      const isCurrent = entry && entry.startTime && !entry.endTime;
+      const isDone = dur != null;
+      let cls = '';
+      if (isDone) cls = 'done';
+      if (isCurrent) cls = 'current';
+      const cutoffText = s.arriveCutoffHours != null
+        ? Race.fmt.hoursToHm(s.arriveCutoffHours) : '—';
+      // Pit time after this segment (gap to next leg's startTime, if any)
+      const nextEntry = (runner.legs || []).find(l => l.index === s.index + 1);
+      const pitSec = entry && entry.endTime && nextEntry && nextEntry.startTime
+        ? (new Date(nextEntry.startTime) - new Date(entry.endTime)) / 1000 : null;
+      const durText = isDone ? Race.fmt.durationShort(dur)
+        : isCurrent ? Race.fmt.durationShort(c.currentLegSeconds)
+        : '—';
+      return `
+        <div class="seg-row ${cls}">
+          <span class="num">${s.index}</span>
+          <span class="nm">
+            ${escapeHtml(s.name)}
+            <div class="meta">${s.distanceMi.toFixed(1)} mi · ${s.cumulativeMi.toFixed(1)} mi total${s.elevationGainFt != null ? ` · +${s.elevationGainFt}/${-Math.abs(s.elevationLossFt || 0)} ft` : ''}</div>
+          </span>
+          <span class="col-dur">${durText}</span>
+          <span class="col-cut">${cutoffText}</span>
+          <span class="col-pit">${pitSec != null ? Race.fmt.durationShort(pitSec) + ' pit' : ''}</span>
+        </div>`;
+    }).join('');
+  }
+
+  function legLog(runner, c) {
+    if (!runner.legs || runner.legs.length === 0) {
+      return `<tr class="empty"><td colspan="7">Awaiting first leg</td></tr>`;
+    }
+    return runner.legs.slice().sort((a, b) => a.index - b.index).map((l, i, arr) => {
+      const segDef = Race.course.legAt(cfg, l.index);
+      const dur = (l.startTime && l.endTime)
+        ? (new Date(l.endTime) - new Date(l.startTime)) / 1000 : null;
+      const next = arr[i + 1];
+      let pitSec = null;
+      if (l.endTime && next && next.startTime) {
+        pitSec = (new Date(next.startTime) - new Date(l.endTime)) / 1000;
+      } else if (l.endTime && !next && c.inPit && i === arr.length - 1) {
+        pitSec = c.currentPitSeconds;
+      }
+      const pitCell = pitSec != null
+        ? Race.fmt.durationShort(pitSec) + (next ? '' : ' <span style="color: var(--accent); font-size: 9px;">●</span>')
+        : '—';
+      const noteParts = [l.gearChanges, l.meds, l.issues, l.notes].filter(Boolean);
+      const isOld = (arr.length - 1 - i) >= 2;
+      const oldCls = isOld ? ' leg-old' : '';
+      const noteOldCls = isOld ? ' note-old' : '';
+      const noteRow = noteParts.length
+        ? `<tr class="note-row${noteOldCls}"><td colspan="7">${escapeHtml(noteParts.join(' · '))}</td></tr>`
+        : '';
+      const legLabel = cfg.courseType === 'segments' && segDef
+        ? `${l.index} <span style="color: var(--text-muted); font-size: 10px; display: block;">${escapeHtml(segDef.name)}</span>` : l.index;
+      return `
+        <tr class="leg-row${oldCls}">
+          <td class="leg-num">${legLabel}</td>
+          <td class="num">${Race.fmt.clockTime(l.endTime)}</td>
+          <td class="num">${dur ? Race.fmt.durationShort(dur) : '—'}</td>
+          <td class="num">${pitCell}</td>
+          <td class="num">${l.calories || 0}</td>
+          <td class="num">${l.fluidOz || 0}oz</td>
+          <td class="num">${l.sodiumMg || 0}</td>
+        </tr>
+        ${noteRow}`;
+    }).join('');
+  }
+
+  function loadLeglogState() {
+    try { return JSON.parse(localStorage.getItem(LEGLOG_KEY) || '{}'); }
+    catch (e) { return {}; }
+  }
+  function saveLeglogState(s) { try { localStorage.setItem(LEGLOG_KEY, JSON.stringify(s)); } catch (e) {} }
+  function leglogCollapsed(runnerId, count) {
+    if (count <= 2) return false;
+    const s = loadLeglogState();
+    return s[runnerId] !== false;
+  }
+
+  function renderRunner(runner) {
+    const c = Race.compute.runner(runner, cfg);
+    const t = cfg.targets || {};
+    const color = runner.color || 'var(--accent)';
+    const totalDist = c.courseDist;
+    const totalCutSec = (cfg.cutoffs?.totalHours || 0) * 3600;
+
+    const legsBlock = cfg.courseType === 'loops'
+      ? `<div class="legs-grid">${loopLegCells(runner, c)}</div>`
+      : `<div class="seg-list">${segmentRows(runner, c)}</div>`;
+
+    const legUnit = cfg.courseType === 'loops' ? 'Laps' : 'Segments';
+
+    return `
+      <article class="runner" style="--runner-color: ${color};">
+        <div class="runner-head">
+          <div>
+            <div class="runner-name">${escapeHtml(runner.name)}</div>
+            <div class="runner-bib">${escapeHtml(runner.bib || '')}</div>
+          </div>
+          <span class="status-badge status-${c.status}">${statusLabel(c.status)}</span>
+        </div>
+
+        <div class="stats">
+          <div class="stat">
+            <span class="label">${legUnit}</span>
+            <span class="value">${c.legsDone}<span style="color: var(--text-muted); font-size: 14px;">/${c.totalLegs}</span></span>
+            <span class="sub">${c.milesDone.toFixed(1)} / ${totalDist.toFixed(1)} mi</span>
+          </div>
+          <div class="stat">
+            <span class="label">Race Time</span>
+            <span class="value live-timer" data-base="${c.completedRaceSec}" data-since="${c.liveSince || ''}">${Race.fmt.duration(c.raceSec)}</span>
+            <span class="sub">of ${Race.fmt.hoursToHm(cfg.cutoffs?.totalHours)}</span>
+          </div>
+          <div class="stat${c.inProgressLeg ? ' live' : ''}">
+            <span class="label">Course Total</span>
+            <span class="value live-timer" data-base="${c.completedCourseSec}" data-since="${c.inProgressLeg ? (c.liveSince || '') : ''}">${Race.fmt.duration(c.totalCourseSec)}</span>
+            <span class="sub">${c.inProgressLeg ? 'on course' : 'running total'}</span>
+          </div>
+          <div class="stat${c.inPit ? ' live' : ''}">
+            <span class="label">Pit Total</span>
+            <span class="value live-timer" data-base="${c.completedPitSec}" data-since="${c.inPit ? (c.liveSince || '') : ''}">${Race.fmt.duration(c.totalPitSec)}</span>
+            <span class="sub">${c.inPit ? 'in pit now' : (c.avgPitSec != null ? 'avg ' + Race.fmt.duration(c.avgPitSec) : 'no pit yet')}</span>
+          </div>
+          ${(() => {
+            let liveCls = '', liveValue = '—', liveSub;
+            if (c.inProgressLeg) {
+              liveCls = ' live-course';
+              liveValue = Race.fmt.duration(c.currentLegSeconds);
+              const segDef = Race.course.legAt(cfg, c.liveLegIndex);
+              liveSub = cfg.courseType === 'segments'
+                ? `${segDef ? segDef.name : 'Leg ' + c.liveLegIndex}`
+                : `Lap ${c.liveLegIndex} on course`;
+            } else if (c.inPit) {
+              liveCls = ' live-pit';
+              liveValue = Race.fmt.duration(c.currentPitSeconds);
+              const segDef = Race.course.legAt(cfg, c.liveLegIndex);
+              liveSub = cfg.courseType === 'segments'
+                ? `at ${segDef && segDef.toAid ? segDef.toAid : 'aid'}`
+                : `In pit · after lap ${c.liveLegIndex}`;
+            } else if (c.legsDone >= c.totalLegs && c.legsDone > 0) {
+              liveSub = 'finished';
+            } else {
+              liveSub = c.legsDone === 0 ? 'not started' : 'idle';
+            }
+            return `
+              <div class="stat${liveCls}">
+                <span class="label">Live</span>
+                <span class="value live-timer" data-base="0" data-since="${c.liveSince || ''}">${liveValue}</span>
+                <span class="sub">${liveSub}</span>
+              </div>`;
+          })()}
+          <div class="stat">
+            <span class="label">Pace</span>
+            <span class="value">${Race.fmt.pace(c.paceSecPerMile)}</span>
+            <span class="sub">min / mi</span>
+          </div>
+          <div class="stat">
+            <span class="label">Avg Leg</span>
+            <span class="value">${Race.fmt.duration(c.avgLegSec)}</span>
+            <span class="sub">last: ${Race.fmt.duration(c.lastLegSec)}</span>
+          </div>
+          <div class="stat">
+            <span class="label">Projected</span>
+            <span class="value">${Race.fmt.duration(c.projectedFinishSec)}</span>
+            <span class="sub">${c.projectedFinishSec && totalCutSec ? (c.projectedFinishSec > totalCutSec ? 'over cutoff' : 'under cutoff') : '—'}</span>
+          </div>
+        </div>
+
+        ${(t.caloriesPerHour || t.fluidOzPerHour || t.sodiumMgPerHour) ? `
+        <div class="intake">
+          <div class="intake-title">Intake / Hour</div>
+          ${t.caloriesPerHour ? `
+            <div class="intake-row">
+              <span class="name">Calories</span>
+              <div class="bar-track"><div class="bar-fill ${intakeClass(c.calPerHr, t.caloriesPerHour)}" style="width: ${Math.min(100, (c.calPerHr / t.caloriesPerHour) * 100)}%"></div></div>
+              <span class="num">${Math.round(c.calPerHr)}</span>
+              <span class="target">/ ${t.caloriesPerHour}</span>
+            </div>` : ''}
+          ${t.fluidOzPerHour ? `
+            <div class="intake-row">
+              <span class="name">Fluid</span>
+              <div class="bar-track"><div class="bar-fill ${intakeClass(c.fluidPerHr, t.fluidOzPerHour)}" style="width: ${Math.min(100, (c.fluidPerHr / t.fluidOzPerHour) * 100)}%"></div></div>
+              <span class="num">${c.fluidPerHr.toFixed(1)} oz</span>
+              <span class="target">/ ${t.fluidOzPerHour} oz</span>
+            </div>` : ''}
+          ${t.sodiumMgPerHour ? `
+            <div class="intake-row">
+              <span class="name">Sodium</span>
+              <div class="bar-track"><div class="bar-fill ${intakeClass(c.sodiumPerHr, t.sodiumMgPerHour)}" style="width: ${Math.min(100, (c.sodiumPerHr / t.sodiumMgPerHour) * 100)}%"></div></div>
+              <span class="num">${Math.round(c.sodiumPerHr)} mg</span>
+              <span class="target">/ ${t.sodiumMgPerHour} mg</span>
+            </div>` : ''}
+        </div>` : ''}
+
+        <div class="legs-section">
+          <div class="legs-head">
+            <span class="legs-title">${cfg.courseType === 'loops' ? 'Lap Status' : 'Segments'}</span>
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-muted);">
+              ${c.legsDone} done · ${c.totalLegs - c.legsDone} to go
+            </span>
+          </div>
+          ${legsBlock}
+          <div class="leglog ${leglogCollapsed(runner.id, (runner.legs || []).length) ? 'collapsed' : ''}" data-runner="${runner.id}">
+            ${(runner.legs || []).length > 2 ? `
+              <div class="leglog-head" data-action="toggle-leglog" data-runner="${runner.id}">
+                <span class="leglog-head-title">Leg Log</span>
+                <span class="leglog-toggle">
+                  <span class="when-collapsed">Show all ${runner.legs.length}</span>
+                  <span class="when-expanded">Show recent 2</span>
+                </span>
+              </div>
+            ` : ''}
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th><th>Done</th><th class="num">Leg</th><th class="num">Pit</th>
+                  <th class="num">Cal</th><th class="num">Fluid</th><th class="num">Na</th>
+                </tr>
+              </thead>
+              <tbody>${legLog(runner, c)}</tbody>
+            </table>
+          </div>
+        </div>
+      </article>
+    `;
+  }
+
+  function tick() {
+    if (!cfg) return;
+    const now = new Date();
+    const start = new Date(cfg.startTime);
+    const cutoffSec = (cfg.cutoffs?.totalHours || 0) * 3600;
+    let diff = Math.floor((now - start) / 1000);
+    const el = document.getElementById('elapsed');
+    if (diff < 0) {
+      el.textContent = `-${Race.fmt.duration(-diff)}`;
+      el.style.color = 'var(--text-muted)';
+    } else {
+      const capped = Math.min(diff, cutoffSec || diff);
+      el.textContent = Race.fmt.duration(capped);
+      el.style.color = (cutoffSec && capped >= cutoffSec) ? 'var(--red)' : 'var(--text)';
+    }
+    document.querySelectorAll('.live-timer').forEach(t => {
+      const since = t.dataset.since;
+      if (!since) return;
+      const base = parseFloat(t.dataset.base) || 0;
+      const seconds = base + Math.max(0, (Date.now() - new Date(since).getTime()) / 1000);
+      t.textContent = Race.fmt.duration(seconds);
+    });
+  }
+
+  async function load() {
+    try {
+      const cfgRes = await fetch(`races/${encodeURIComponent(slug)}/config.json?_=${Date.now()}`, { cache: 'no-store' });
+      if (!cfgRes.ok) throw new Error(`config.json not found for race "${slug}"`);
+      cfg = await cfgRes.json();
+
+      const dataRes = await fetch(`races/${encodeURIComponent(slug)}/data.json?_=${Date.now()}`, { cache: 'no-store' });
+      if (!dataRes.ok) throw new Error(`data.json not found for race "${slug}"`);
+      data = await dataRes.json();
+      lastFetchAt = new Date();
+
+      document.title = `${cfg.name} · Live`;
+      document.getElementById('race-title').innerHTML =
+        cfg.name.replace(/(\w+)$/, '<em>$1</em>');
+      document.getElementById('brand-subtitle').textContent =
+        cfg.location || (cfg.courseType === 'loops' ? 'Loops' : 'Point-to-point');
+
+      renderCutoffs();
+
+      const runnersById = new Map((cfg.runners || []).map(r => [r.id, r]));
+      const merged = (data.runners || []).map(d => {
+        const meta = runnersById.get(d.id) || {};
+        return { ...meta, ...d };
+      });
+      // Include configured runners who don't have entries yet
+      (cfg.runners || []).forEach(r => {
+        if (!merged.find(m => m.id === r.id)) merged.push({ ...r, legs: [] });
+      });
+
+      const container = document.getElementById('runners');
+      container.classList.toggle('single', merged.length === 1);
+      container.innerHTML = merged.map(renderRunner).join('');
+
+      document.getElementById('error').style.display = 'none';
+      updateLastUpdated();
+      tick();
+    } catch (err) {
+      const e = document.getElementById('error');
+      e.style.display = 'block';
+      e.textContent = `Error loading race: ${err.message}`;
+    }
+  }
+
+  function updateLastUpdated() {
+    if (!data) return;
+    const lu = data.lastUpdated
+      ? `Data updated ${new Date(data.lastUpdated).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+      : 'Awaiting start';
+    let live = '';
+    if (lastFetchAt) {
+      const ago = Math.max(0, Math.floor((Date.now() - lastFetchAt.getTime()) / 1000));
+      live = ago < 5 ? ' · live' : ` · checked ${ago}s ago`;
+    }
+    document.getElementById('last-updated').textContent = lu + live;
+  }
+
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-action="toggle-leglog"]');
+    if (!t) return;
+    const id = t.dataset.runner;
+    const log = t.closest('.leglog');
+    if (!log) return;
+    const nowCollapsed = !log.classList.contains('collapsed');
+    log.classList.toggle('collapsed', nowCollapsed);
+    const s = loadLeglogState();
+    s[id] = nowCollapsed;
+    saveLeglogState(s);
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') load();
+  });
+
+  load();
+  setInterval(tick, 1000);
+  setInterval(updateLastUpdated, 1000);
+  setInterval(load, REFRESH_MS);
+</script>
+
+</body>
+</html>
