@@ -13,7 +13,8 @@ repo, edited live via the GitHub Contents API.
   targets, and a GPX file, then commits `races/<slug>/config.json`,
   `races/<slug>/data.json`, optional `races/<slug>/course.gpx`, and
   updates `races/index.json`.
-- `race.html?id=<slug>` — live dashboard for one race.
+- `race.html?id=<slug>` — live dashboard for one race, including a
+  course map (Leaflet + OpenStreetMap) when a `course.gpx` is present.
 - `pit.html?id=<slug>` — sign in/out, intake editing, aid-station editing.
 - `charts.html?id=<slug>` — leg times, pace, aid times, intake, cumulative.
 - `print-report.html?id=<slug>` — printable summary.
