@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Accept Invite · Race Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lib/race-theme.css">
+<style>
+  .wrap { max-width: 480px; margin: 60px auto; padding: 0 20px; }
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px; padding: 32px; position: relative;
+  }
+  .card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+  }
+  .title {
+    font-family: 'Fraunces', serif; font-size: 28px;
+    font-weight: 600; letter-spacing: -0.02em; margin-bottom: 8px;
+  }
+  .subtitle {
+    color: var(--text-dim); font-size: 14px; line-height: 1.5;
+    margin-bottom: 24px;
+  }
+  .field { display: block; margin-bottom: 16px; }
+  .lbl {
+    display: block; font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: 6px;
+  }
+  input[type=email], input[type=password] {
+    width: 100%; padding: 12px 14px; box-sizing: border-box;
+    background: var(--bg-elevated); border: 1px solid var(--border-bright);
+    border-radius: 4px; color: var(--text);
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  .btn-row { display: flex; gap: 10px; align-items: center; margin-top: 8px; }
+  .hint { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+  .ok {
+    background: rgba(110, 231, 168, 0.08); border: 1px solid rgba(110, 231, 168, 0.4);
+    border-radius: 4px; padding: 14px 16px; margin-top: 18px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    color: var(--green);
+  }
+  .err {
+    background: rgba(255, 89, 89, 0.06); border: 1px solid rgba(255, 89, 89, 0.4);
+    border-radius: 4px; padding: 14px 16px; margin-top: 18px;
+    font-size: 12px; color: var(--red);
+  }
+  .nav { margin-top: 24px; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+  .nav a { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="brand">
+    <div class="brand-meta">
+      <span>Race Hub</span><span>·</span><span>Accept invite</span>
+    </div>
+    <h1 class="site">Set up your <em>account</em></h1>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <div id="state-loading">
+      <div class="title">Checking invite…</div>
+      <div class="subtitle">One moment.</div>
+    </div>
+
+    <div id="state-form" style="display:none;">
+      <div class="title" id="form-title">Set a password</div>
+      <div class="subtitle" id="form-subtitle">Pick a password to finish setting up your account.</div>
+      <label class="field">
+        <span class="lbl">Email</span>
+        <input type="email" id="su-email" readonly />
+      </label>
+      <label class="field">
+        <span class="lbl">Password</span>
+        <input type="password" id="su-password" autocomplete="new-password" minlength="8" />
+        <span class="hint">At least 8 characters.</span>
+      </label>
+      <label class="field">
+        <span class="lbl">Confirm password</span>
+        <input type="password" id="su-confirm" autocomplete="new-password" />
+      </label>
+      <div class="btn-row">
+        <button class="btn primary" id="su-submit">Create account & accept invite</button>
+      </div>
+      <div id="form-err"></div>
+    </div>
+
+    <div id="state-done" style="display:none;">
+      <div class="title">Welcome!</div>
+      <div class="subtitle">Your account is set up and you've been added to the race.</div>
+      <div class="ok" id="done-detail"></div>
+      <div class="btn-row" style="margin-top: 18px;">
+        <a class="btn primary" id="go-race" href="#">Go to the race →</a>
+      </div>
+    </div>
+
+    <div id="state-error" style="display:none;">
+      <div class="title">Invite problem</div>
+      <div class="err" id="err-detail"></div>
+      <div class="nav"><a href="index.html">← Back to hub</a></div>
+    </div>
+  </div>
+</div>
+
+<script src="lib/race-core.js"></script>
+<script>
+  (async () => {
+    await Race.hub.load();
+    if (!Race.hub.isProxyMode()) {
+      return showError('This hub is running in direct (PAT) mode, not proxy mode — invites are only available when the worker is configured. Ask your hub admin to set up hub.json with a proxyUrl.');
+    }
+
+    const token = Race.qs('invite');
+    if (!token) return showError('No invite token in the URL.');
+
+    // Look up the invite so we can show the recipient their email and tell
+    // them whether this is a brand-new account or one they already have.
+    const proxyUrl = Race.hub.proxyUrl().replace(/\/+$/, '');
+    let info = null;
+    try {
+      const res = await fetch(proxyUrl + '/invite-info?token=' + encodeURIComponent(token));
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) return showError((payload && payload.error) || 'Could not look up invite.');
+      info = payload;
+    } catch (err) {
+      return showError(err.message || 'Network error while looking up invite.');
+    }
+
+    document.getElementById('state-loading').style.display = 'none';
+    document.getElementById('state-form').style.display = '';
+    document.getElementById('su-email').value = info.email;
+    if (info.accountExists) {
+      document.getElementById('form-title').textContent = 'Sign in to accept';
+      document.getElementById('form-subtitle').textContent =
+        `An account for ${info.email} already exists. Enter your current password to accept ${info.role} access to "${info.slug}".`;
+      const confirmField = document.getElementById('su-confirm').closest('label');
+      if (confirmField) confirmField.style.display = 'none';
+      document.getElementById('su-submit').textContent = 'Sign in & accept invite';
+    } else {
+      document.getElementById('form-subtitle').textContent =
+        `Pick a password to finish setting up your account. You'll get ${info.role} access to "${info.slug}".`;
+    }
+
+    document.getElementById('su-submit').addEventListener('click', onSubmit);
+    document.getElementById('su-password').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('su-confirm').focus();
+    });
+    document.getElementById('su-confirm').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') onSubmit();
+    });
+
+    async function onSubmit() {
+      const password = document.getElementById('su-password').value;
+      const confirm = document.getElementById('su-confirm').value;
+      const errEl = document.getElementById('form-err');
+      errEl.innerHTML = '';
+      if (!password || password.length < 8) {
+        errEl.innerHTML = `<div class="err">Password must be at least 8 characters.</div>`;
+        return;
+      }
+      if (!info.accountExists && password !== confirm) {
+        errEl.innerHTML = `<div class="err">Passwords don't match.</div>`;
+        return;
+      }
+      const btn = document.getElementById('su-submit');
+      btn.disabled = true; btn.textContent = 'Setting up…';
+      try {
+        const r = await Race.api.acceptInvite(token, password);
+        document.getElementById('state-form').style.display = 'none';
+        document.getElementById('state-done').style.display = '';
+        document.getElementById('done-detail').textContent =
+          `${r.accountCreated ? 'Account created' : 'Linked to your existing account'} · added to race "${r.slug}" as ${r.raceRole}.`;
+        const link = document.getElementById('go-race');
+        link.href = `race.html?id=${encodeURIComponent(r.slug)}`;
+      } catch (err) {
+        errEl.innerHTML = `<div class="err">${escapeHtml(err.message || 'Could not accept invite.')}</div>`;
+        btn.disabled = false; btn.textContent = 'Create account & accept invite';
+      }
+    }
+  })();
+
+  function showError(msg) {
+    document.getElementById('state-loading').style.display = 'none';
+    document.getElementById('state-error').style.display = '';
+    document.getElementById('err-detail').textContent = msg;
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+</script>
+
+</body>
+</html>

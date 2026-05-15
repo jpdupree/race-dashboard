@@ -247,6 +247,115 @@
   .legend { display: flex; gap: 18px; flex-wrap: wrap; }
   .legend-item { display: flex; align-items: center; gap: 6px; }
   .swatch { width: 10px; height: 10px; border-radius: 2px; }
+
+  /* Manage access panel */
+  .access {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px; margin: 0 0 24px;
+  }
+  .access-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 22px; cursor: pointer; user-select: none;
+    border-bottom: 1px solid transparent;
+  }
+  .access.open .access-head { border-bottom-color: var(--border); }
+  .access:not(.open) .access-body { display: none; }
+  .access-head-title {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-muted);
+  }
+  .access-head-toggle { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-muted); }
+  .access:not(.open) .access-head-toggle::before { content: '▶ '; }
+  .access.open .access-head-toggle::before { content: '▼ '; }
+  .access-body { padding: 18px 22px 22px; }
+  .access-section { margin-bottom: 22px; }
+  .access-section:last-child { margin-bottom: 0; }
+  .access-section-title {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+  .access-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .access-list .row {
+    display: grid; grid-template-columns: 1fr auto auto; gap: 12px;
+    align-items: center; padding: 8px 12px;
+    background: var(--bg-elevated); border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  }
+  .access-list .row .who { color: var(--text); word-break: break-all; }
+  .access-list .row .tag {
+    font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase;
+    padding: 2px 6px; border-radius: 2px; color: var(--text-muted);
+    border: 1px solid var(--border-bright);
+  }
+  .access-list .row .tag.editor { color: var(--accent); border-color: var(--accent); }
+  .access-list .row .tag.viewer { color: var(--blue); border-color: var(--blue); }
+  .access-list .row .tag.creator { color: var(--green); border-color: var(--green); }
+  .access-list .row button {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-muted); padding: 4px 8px; border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; cursor: pointer;
+  }
+  .access-list .row button:hover { color: var(--red); border-color: var(--red); }
+  .access-list .empty {
+    padding: 10px 12px; color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    font-style: italic;
+  }
+  .access-add { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .access-add input[type="email"] {
+    flex: 1 1 200px; padding: 8px 12px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  }
+  .access-add select {
+    padding: 8px 10px; background: var(--bg-elevated);
+    border: 1px solid var(--border-bright); border-radius: 4px;
+    color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  }
+  .access-add button {
+    padding: 8px 14px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .access-help {
+    font-size: 11px; color: var(--text-dim); line-height: 1.55;
+    background: var(--bg-elevated); padding: 10px 12px; border-radius: 4px;
+    border-left: 2px solid var(--accent); margin-top: 10px;
+  }
+  .access-invite-result, .access-share-result {
+    margin-top: 10px; padding: 10px 12px;
+    background: var(--bg-elevated); border: 1px solid rgba(110, 231, 168, 0.4);
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    word-break: break-all;
+  }
+  .access-invite-result .url, .access-share-result .url { color: var(--green); margin-top: 6px; display: block; }
+  .access-invite-result .copy, .access-share-result .copy {
+    margin-top: 8px; padding: 6px 10px;
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .access-err { color: var(--red); margin-top: 8px; font-size: 11px; }
+  .share-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; padding: 8px 12px;
+    background: var(--bg-elevated); border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; align-items: center; }
+  .share-row .lbl { color: var(--text-muted); }
+  .share-row .url { color: var(--text); word-break: break-all; }
+  .share-row button {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-muted); padding: 4px 8px; border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; cursor: pointer;
+  }
+  .share-row button.copy:hover { color: var(--accent); border-color: var(--accent); }
+  .share-row button.revoke:hover { color: var(--red); border-color: var(--red); }
+  .share-banner {
+    background: var(--bg-card); border: 1px solid var(--blue);
+    color: var(--text); padding: 10px 16px; border-radius: 4px;
+    margin: 0 0 18px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    flex-wrap: wrap;
+  }
+  .share-banner .em { color: var(--blue); }
 </style>
 </head>
 <body>
@@ -273,7 +382,15 @@
 </header>
 
 <div id="error" class="error-banner" style="display:none;"></div>
+<div id="share-banner" class="share-banner" style="display:none;"></div>
 <div id="cutoffs" class="cutoffs" style="display:none;"></div>
+<section id="access" class="access" style="display:none;">
+  <div class="access-head">
+    <span class="access-head-title">Manage access</span>
+    <span class="access-head-toggle">Expand</span>
+  </div>
+  <div class="access-body" id="access-body"></div>
+</section>
 <section id="runners" class="runners"></section>
 
 <footer class="site">
@@ -623,6 +740,11 @@
 
   async function load() {
     try {
+      // Stash any ?t=<share-token> for use by the worker reads (currently
+      // share-link viewers read direct from Pages since the data is public;
+      // when we move to private-backend storage this becomes mandatory).
+      Race.share.captureFromUrl();
+
       const cfgRes = await fetch(`races/${encodeURIComponent(slug)}/config.json?_=${Date.now()}`, { cache: 'no-store' });
       if (!cfgRes.ok) throw new Error(`config.json not found for race "${slug}"`);
       cfg = await cfgRes.json();
@@ -655,6 +777,8 @@
       container.innerHTML = merged.map(renderRunner).join('');
 
       document.getElementById('error').style.display = 'none';
+      renderShareBanner();
+      maybeShowAccessPanel();
       updateLastUpdated();
       tick();
     } catch (err) {
@@ -662,6 +786,293 @@
       e.style.display = 'block';
       e.textContent = `Error loading race: ${err.message}`;
     }
+  }
+
+  // ---------- share banner (anonymous shared view) ----------
+  function renderShareBanner() {
+    const banner = document.getElementById('share-banner');
+    const tok = Race.share.get();
+    if (tok && !Race.auth.has() && cfg.visibility === 'private') {
+      banner.style.display = '';
+      banner.innerHTML = `
+        <span><span class="em">Shared view</span> · read-only via share link</span>
+        <span style="color: var(--text-muted);">${escapeHtml(cfg.name || '')}</span>
+      `;
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
+  // ---------- manage access ----------
+  function isProxyMode() { return Race.hub.isProxyMode(); }
+  function currentEmail() { return Race.auth.email(); }
+  function canManage() {
+    if (!isProxyMode() || !Race.auth.has()) return false;
+    const me = (currentEmail() || '').toLowerCase();
+    if (!me) return false;
+    if ((cfg.createdBy || '').toLowerCase() === me) return true;
+    return (cfg.editors || []).some(e => (e || '').toLowerCase() === me);
+  }
+
+  let accessLoaded = false;
+  function maybeShowAccessPanel() {
+    const sec = document.getElementById('access');
+    if (!canManage()) { sec.style.display = 'none'; return; }
+    sec.style.display = '';
+    if (!sec.dataset.wired) {
+      sec.querySelector('.access-head').addEventListener('click', () => {
+        sec.classList.toggle('open');
+        if (sec.classList.contains('open') && !accessLoaded) loadAccess();
+      });
+      sec.dataset.wired = '1';
+    }
+  }
+
+  let accessState = null;
+  async function loadAccess() {
+    const body = document.getElementById('access-body');
+    body.innerHTML = `<div class="access-section"><div class="access-section-title">Loading…</div></div>`;
+    try {
+      accessState = await Race.api.accessList(slug);
+      accessLoaded = true;
+      renderAccess();
+    } catch (err) {
+      body.innerHTML = `<div class="access-err">Could not load access: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  function renderAccess() {
+    const s = accessState;
+    if (!s) return;
+    const me = (currentEmail() || '').toLowerCase();
+    const editors = (s.editors || []);
+    const viewers = (s.viewers || []);
+    const editorsRow = (em, isCreator) => `
+      <div class="row">
+        <span class="who">${escapeHtml(em)}${em.toLowerCase() === me ? ' <span style="color: var(--text-muted);">(you)</span>' : ''}</span>
+        <span class="tag ${isCreator ? 'creator' : 'editor'}">${isCreator ? 'Creator' : 'Editor'}</span>
+        ${isCreator ? '<span></span>' : `<button data-revoke-editor="${escapeHtml(em)}">Revoke</button>`}
+      </div>`;
+    const viewerRow = (em) => `
+      <div class="row">
+        <span class="who">${escapeHtml(em)}</span>
+        <span class="tag viewer">Viewer</span>
+        <button data-revoke-viewer="${escapeHtml(em)}">Revoke</button>
+      </div>`;
+
+    const creator = s.createdBy ? [editorsRow(s.createdBy, true)] : [];
+    const editorsHtml = creator.concat(
+      editors
+        .filter(em => (em || '').toLowerCase() !== (s.createdBy || '').toLowerCase())
+        .map(em => editorsRow(em, false))
+    ).join('') || `<div class="empty">No editors yet.</div>`;
+    const viewersHtml = viewers.map(viewerRow).join('') || `<div class="empty">No invited viewers.</div>`;
+
+    const shareLinksHtml = (s.shareLinks || []).length
+      ? (s.shareLinks || []).map(sh => {
+          const url = `${location.origin}${location.pathname.replace(/[^/]*$/, '')}race.html?id=${encodeURIComponent(slug)}&t=${encodeURIComponent(sh.token)}`;
+          const exp = sh.expiresAt ? new Date(sh.expiresAt).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' }) : 'no expiry';
+          return `
+            <div class="share-row">
+              <div>
+                <div class="lbl">View link · expires ${exp}</div>
+                <div class="url">${escapeHtml(url)}</div>
+              </div>
+              <button class="copy" data-copy-share="${escapeHtml(url)}">Copy</button>
+              <button class="revoke" data-revoke-share="${escapeHtml(sh.token)}">Revoke</button>
+            </div>`;
+        }).join('')
+      : `<div class="empty">No share links yet.</div>`;
+
+    const pendingHtml = (s.pendingInvites || []).length
+      ? (s.pendingInvites || []).map(inv => {
+          const exp = inv.expiresAt ? new Date(inv.expiresAt).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' }) : 'no expiry';
+          return `
+            <div class="share-row">
+              <div>
+                <div class="lbl">Invite for ${escapeHtml(inv.email)} (${escapeHtml(inv.role)}) · expires ${exp}</div>
+                <div class="url">signup link copied when you sent it · token ${escapeHtml(inv.token.slice(0, 8))}…</div>
+              </div>
+              <span></span>
+              <button class="revoke" data-revoke-invite="${escapeHtml(inv.token)}">Cancel</button>
+            </div>`;
+        }).join('')
+      : '';
+
+    const body = document.getElementById('access-body');
+    body.innerHTML = `
+      <div class="access-section">
+        <div class="access-section-title">Editors</div>
+        <div class="access-list">${editorsHtml}</div>
+      </div>
+
+      <div class="access-section">
+        <div class="access-section-title">Viewers (private races only)</div>
+        <div class="access-list">${viewersHtml}</div>
+      </div>
+
+      <div class="access-section">
+        <div class="access-section-title">Invite someone</div>
+        <div class="access-add">
+          <input type="email" id="ax-email" placeholder="email@example.com" autocomplete="off" spellcheck="false" />
+          <select id="ax-role">
+            <option value="editor">Editor</option>
+            <option value="viewer">Viewer</option>
+          </select>
+          <button class="btn primary" id="ax-invite">Generate invite link</button>
+          <button class="btn" id="ax-add-existing">Add (already has account)</button>
+        </div>
+        <div class="access-help">
+          <strong>Invite link</strong> — generates a one-time link you send to them; they pick a password and get access in one step.<br>
+          <strong>Add (already has account)</strong> — adds them by email if they're already signed up. No notification is sent.
+        </div>
+        <div id="ax-invite-result"></div>
+      </div>
+
+      <div class="access-section">
+        <div class="access-section-title">Share links (view without account)</div>
+        <div class="access-list">${shareLinksHtml}</div>
+        <div class="access-add">
+          <button class="btn primary" id="ax-share">Generate view share link</button>
+          <span style="color: var(--text-muted); font-size: 11px;">Default expiry: 30 days. Anyone with the link can view.</span>
+        </div>
+        <div id="ax-share-result"></div>
+      </div>
+
+      ${pendingHtml ? `
+        <div class="access-section">
+          <div class="access-section-title">Pending invites</div>
+          <div class="access-list">${pendingHtml}</div>
+        </div>
+      ` : ''}
+    `;
+
+    wireAccessHandlers();
+  }
+
+  function wireAccessHandlers() {
+    const body = document.getElementById('access-body');
+
+    body.querySelectorAll('[data-revoke-editor]').forEach(b => {
+      b.addEventListener('click', async () => {
+        const email = b.dataset.revokeEditor;
+        if (!confirm(`Revoke editor access for ${email}?`)) return;
+        b.disabled = true; b.textContent = '…';
+        try { await Race.api.accessRemove(slug, email); await loadAccess(); }
+        catch (err) { alert('Could not revoke: ' + err.message); b.disabled = false; b.textContent = 'Revoke'; }
+      });
+    });
+    body.querySelectorAll('[data-revoke-viewer]').forEach(b => {
+      b.addEventListener('click', async () => {
+        const email = b.dataset.revokeViewer;
+        if (!confirm(`Revoke viewer access for ${email}?`)) return;
+        b.disabled = true; b.textContent = '…';
+        try { await Race.api.accessRemove(slug, email); await loadAccess(); }
+        catch (err) { alert('Could not revoke: ' + err.message); b.disabled = false; b.textContent = 'Revoke'; }
+      });
+    });
+    body.querySelectorAll('[data-copy-share]').forEach(b => {
+      b.addEventListener('click', () => copyToClipboard(b.dataset.copyShare, b));
+    });
+    body.querySelectorAll('[data-revoke-share]').forEach(b => {
+      b.addEventListener('click', async () => {
+        if (!confirm('Revoke this share link?')) return;
+        b.disabled = true; b.textContent = '…';
+        try { await Race.api.shareRevoke(b.dataset.revokeShare); await loadAccess(); }
+        catch (err) { alert('Could not revoke: ' + err.message); b.disabled = false; b.textContent = 'Revoke'; }
+      });
+    });
+    body.querySelectorAll('[data-revoke-invite]').forEach(b => {
+      b.addEventListener('click', async () => {
+        if (!confirm('Cancel this pending invite? The link will stop working.')) return;
+        b.disabled = true; b.textContent = '…';
+        try { await Race.api.shareRevoke(b.dataset.revokeInvite); await loadAccess(); }
+        catch (err) { alert('Could not cancel: ' + err.message); b.disabled = false; b.textContent = 'Cancel'; }
+      });
+    });
+
+    const inviteBtn = body.querySelector('#ax-invite');
+    if (inviteBtn) inviteBtn.addEventListener('click', async () => {
+      const email = body.querySelector('#ax-email').value.trim();
+      const role = body.querySelector('#ax-role').value;
+      const out = body.querySelector('#ax-invite-result');
+      if (!email) { out.innerHTML = `<div class="access-err">Email required.</div>`; return; }
+      inviteBtn.disabled = true; inviteBtn.textContent = 'Generating…';
+      try {
+        const r = await Race.api.invite(slug, email, role);
+        out.innerHTML = `
+          <div class="access-invite-result">
+            <div>Send this link to <strong>${escapeHtml(email)}</strong>. They'll set a password and land on the race with ${escapeHtml(role)} access.</div>
+            <span class="url">${escapeHtml(r.url)}</span>
+            <button class="btn copy" data-copy-share="${escapeHtml(r.url)}">Copy link</button>
+          </div>`;
+        out.querySelector('[data-copy-share]').addEventListener('click', (e) => copyToClipboard(r.url, e.currentTarget));
+        await loadAccess();
+      } catch (err) {
+        out.innerHTML = `<div class="access-err">${escapeHtml(err.message)}</div>`;
+        inviteBtn.disabled = false; inviteBtn.textContent = 'Generate invite link';
+      }
+    });
+
+    const addExistingBtn = body.querySelector('#ax-add-existing');
+    if (addExistingBtn) addExistingBtn.addEventListener('click', async () => {
+      const email = body.querySelector('#ax-email').value.trim();
+      const role = body.querySelector('#ax-role').value;
+      const out = body.querySelector('#ax-invite-result');
+      if (!email) { out.innerHTML = `<div class="access-err">Email required.</div>`; return; }
+      addExistingBtn.disabled = true; addExistingBtn.textContent = 'Adding…';
+      try {
+        await Race.api.accessAdd(slug, email, role);
+        out.innerHTML = `<div class="access-invite-result">Added ${escapeHtml(email)} as ${escapeHtml(role)}. They'll see this race in their hub on next visit.</div>`;
+        await loadAccess();
+      } catch (err) {
+        out.innerHTML = `<div class="access-err">${escapeHtml(err.message)}</div>`;
+        addExistingBtn.disabled = false; addExistingBtn.textContent = 'Add (already has account)';
+      }
+    });
+
+    const shareBtn = body.querySelector('#ax-share');
+    if (shareBtn) shareBtn.addEventListener('click', async () => {
+      const out = body.querySelector('#ax-share-result');
+      shareBtn.disabled = true; shareBtn.textContent = 'Generating…';
+      try {
+        const r = await Race.api.shareLink(slug, 'view');
+        out.innerHTML = `
+          <div class="access-share-result">
+            <div>Anyone with this link can view the live dashboard for the next 30 days. Revoke any time below.</div>
+            <span class="url">${escapeHtml(r.url)}</span>
+            <button class="btn copy" data-copy-share="${escapeHtml(r.url)}">Copy link</button>
+          </div>`;
+        out.querySelector('[data-copy-share]').addEventListener('click', (e) => copyToClipboard(r.url, e.currentTarget));
+        await loadAccess();
+      } catch (err) {
+        out.innerHTML = `<div class="access-err">${escapeHtml(err.message)}</div>`;
+      } finally {
+        shareBtn.disabled = false; shareBtn.textContent = 'Generate view share link';
+      }
+    });
+  }
+
+  function copyToClipboard(text, btn) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => flashBtn(btn, 'Copied ✓'),
+        () => fallbackCopy(text, btn));
+    } else {
+      fallbackCopy(text, btn);
+    }
+  }
+  function fallbackCopy(text, btn) {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); flashBtn(btn, 'Copied ✓'); }
+    catch (e) { flashBtn(btn, 'Copy failed'); }
+    document.body.removeChild(ta);
+  }
+  function flashBtn(btn, label) {
+    if (!btn) return;
+    const orig = btn.textContent;
+    btn.textContent = label;
+    setTimeout(() => { btn.textContent = orig; }, 1200);
   }
 
   function updateLastUpdated() {

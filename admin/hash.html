@@ -67,8 +67,9 @@
     <h2>Hash a password</h2>
 
     <label class="field">
-      <span class="lbl">Username</span>
-      <input type="text" id="username" placeholder="e.g. jason" autocomplete="off" spellcheck="false" />
+      <span class="lbl">Email</span>
+      <input type="email" id="username" placeholder="e.g. jason@example.com" autocomplete="off" spellcheck="false" />
+      <span class="hint">Users now sign in with their email address. The worker also accepts the legacy <code>username</code> field for back-compat.</span>
     </label>
 
     <label class="field">
@@ -135,12 +136,12 @@
   }
 
   async function doHash() {
-    const username = document.getElementById('username').value.trim();
+    const email = document.getElementById('username').value.trim().toLowerCase();
     const password = document.getElementById('password').value;
     const role = document.getElementById('role').value;
     const iterations = parseInt(document.getElementById('iterations').value, 10) || 100000;
-    if (!username || !password) {
-      document.getElementById('out').textContent = 'Need a username and password.';
+    if (!email || !password) {
+      document.getElementById('out').textContent = 'Need an email and password.';
       return;
     }
     const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -149,7 +150,7 @@
     btn.disabled = true; btn.textContent = 'Hashing…';
     try {
       const hash = await deriveHash(password, salt, iterations);
-      lastHash = { username, hash: b64(hash), salt: b64(salt), iterations };
+      lastHash = { email, hash: b64(hash), salt: b64(salt), iterations };
       if (role !== 'crew') lastHash.role = role;
       document.getElementById('out').textContent = JSON.stringify(lastHash, null, 2);
       document.getElementById('add-btn').disabled = false;
@@ -162,12 +163,12 @@
 
   function addToList() {
     if (!lastHash) return;
-    users = users.filter(u => u.username !== lastHash.username);
+    users = users.filter(u => (u.email || u.username) !== lastHash.email);
     users.push(lastHash);
     renderUsers();
     document.getElementById('password').value = '';
     document.getElementById('username').value = '';
-    document.getElementById('out').textContent = `Added "${lastHash.username}". Continue with the next user, or copy the list below.`;
+    document.getElementById('out').textContent = `Added "${lastHash.email}". Continue with the next user, or copy the list below.`;
     lastHash = null;
     document.getElementById('add-btn').disabled = true;
   }

@@ -1,6 +1,6 @@
 {
   "auth": {
-    "proxyUrl": null,
-    "_comment": "To enable username/password sign-in for crew, deploy worker/ to Cloudflare and set proxyUrl to the worker's public URL (e.g. https://api.example.com/race-dashboard). With proxyUrl null, the hub uses direct PAT mode."
+    "proxyUrl": "https://race-dashboard-proxy.thebillyman.workers.dev",
+    "_comment": "When proxyUrl is set, the hub uses worker-mediated email/password sign-in. Set it to null to fall back to direct PAT mode."
   }
 }
