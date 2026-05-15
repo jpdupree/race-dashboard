@@ -32,7 +32,7 @@ PUBLIC_BASE_URL = ""
 # /share-link return 503.
 # [[kv_namespaces]]
 # binding = "AUTH_KV"
-# id = "<paste-id-from-wrangler-kv:namespace-create>"
+# id = "a8c164ca55b14dd08d786a98ced12176"
 
 # To route this worker at api.thebillymangames.com/race-dashboard/*, add
 # a route in the Cloudflare dashboard or uncomment + edit:
