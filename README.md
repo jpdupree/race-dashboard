@@ -60,12 +60,12 @@ The hub supports two ways to authenticate writes:
 
 - **Direct PAT** (default). Each device pastes its own fine-grained
   GitHub token. Static, no backend. Fine for one or two operators who
-  are comfortable with PATs.
+  are comfortable with PATs. There is no per-race access control — any
+  PAT-bearer can write any file in the repo.
 - **Login proxy** (optional). A tiny Cloudflare Worker holds the PAT
-  on the server side; crew members sign in with a username + password
-  and the worker commits on their behalf. Crew never sees a token.
-  Reads still go straight to GitHub Pages, so viewing remains
-  anonymous.
+  on the server side; crew members sign in with email + password and
+  the worker commits on their behalf. Each race has its own editors
+  and viewers list. Crew never sees a token.
 
 To enable the login proxy, deploy `worker/` to Cloudflare (see
 [`worker/README.md`](worker/README.md)) and set `auth.proxyUrl` in
@@ -76,6 +76,36 @@ down without bricking race day, as long as an operator has a PAT.
 Generate password hashes for the worker's `USERS` secret with
 [`admin/hash.html`](admin/hash.html) (opens in any browser, runs
 PBKDF2-SHA256 locally — passwords never leave the device).
+
+## Race visibility & access (proxy mode)
+
+When the login proxy is enabled, each race is created with a visibility
+and an ACL:
+
+- **Public race** — appears on the hub landing page; anyone can view the
+  live dashboard without an account. Only listed editors can write.
+- **Private race** — omitted from the public manifest; the slug gets a
+  random suffix so the URL can't be guessed. Editors and listed viewers
+  see it on their hub landing when signed in.
+
+From the race page, the creator (and any editor) can:
+
+- **Invite by email** — generates a one-time signup link; the recipient
+  sets a password and is added with editor or viewer access. You hand
+  off the link via Signal/text/email yourself; the worker doesn't send
+  email.
+- **Add an existing account** — gives an already-signed-up email
+  editor/viewer access without a signup flow.
+- **Generate a view share link** — any anonymous viewer with the link
+  can watch the live dashboard for up to 30 days. Revoke any time.
+
+**v1 limitation:** Private race files still live in this public repo.
+The worker enforces ACLs on writes and on `/get` reads, but anyone with
+the exact direct URL of a private race's `config.json` or `data.json`
+could fetch it from GitHub Pages. The slug randomization makes this
+impractical to guess, but it's obscurity, not encryption. The plan is
+to move private race storage out of the public repo in a future
+iteration.
 
 ## Layout
 
@@ -91,6 +121,7 @@ PBKDF2-SHA256 locally — passwords never leave the device).
   lib/
     race-core.js          shared helpers (compute, GitHub API, GPX, format, auth)
     race-theme.css        shared design tokens + base styles
+  signup.html             invite-acceptance landing page (proxy mode only)
   admin/
     hash.html             local PBKDF2 password hasher for the proxy USERS list
   worker/
@@ -134,6 +165,10 @@ PBKDF2-SHA256 locally — passwords never leave the device).
   "location": "Pittsfield, VT",
   "startTime": "2026-05-08T07:00:00-04:00",
   "courseType": "loops",
+  "visibility": "public",
+  "createdBy": "jason@example.com",
+  "editors": ["jason@example.com"],
+  "viewers": [],
   "cutoffs": { "totalHours": 38, "lastLegStartHours": 35 },
   "course": {
     "loopCount": 10,
@@ -146,6 +181,10 @@ PBKDF2-SHA256 locally — passwords never leave the device).
   "targets": { "caloriesPerHour": 250, "fluidOzPerHour": 20, "sodiumMgPerHour": 500 }
 }
 ```
+
+`visibility`, `createdBy`, `editors`, and `viewers` are only meaningful
+when the login proxy is enabled. In direct PAT mode they're written but
+ignored — any PAT-bearer can read or write any file.
 
 ### `races/<slug>/config.json` (segments)
 

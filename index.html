@@ -83,8 +83,24 @@
 
   .hub-actions {
     margin-bottom: 28px; display: flex; gap: 12px; flex-wrap: wrap;
+    align-items: center;
   }
-  .hub-actions a { text-decoration: none; }
+  .hub-actions a, .hub-actions button { text-decoration: none; }
+  .hub-actions .spacer { flex: 1; }
+  .hub-actions .who {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 0.08em; color: var(--text-dim);
+  }
+  .hub-actions .who .em { color: var(--text); }
+  .card-badge {
+    position: absolute; top: 14px; right: 14px;
+    font-family: 'JetBrains Mono', monospace; font-size: 8px; font-weight: 700;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    padding: 3px 7px; border-radius: 2px;
+    background: rgba(255, 107, 61, 0.15); color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+  .card-badge.viewer { background: rgba(94, 200, 255, 0.12); color: var(--blue); border-color: var(--blue); }
 </style>
 </head>
 <body>
@@ -135,8 +151,16 @@
       ? new Date(r.startTime).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' })
       : '—';
     const dist = r.totalDistanceMi != null ? `${r.totalDistanceMi} mi` : '—';
+    let badge = '';
+    if (r.visibility === 'private') {
+      const cls = r.role === 'viewer' ? 'viewer' : '';
+      badge = `<span class="card-badge ${cls}">Private${r.role ? ' · ' + r.role : ''}</span>`;
+    } else if (r.role === 'editor') {
+      badge = `<span class="card-badge">Editor</span>`;
+    }
     return `
       <a class="card ${past ? 'past' : ''}" href="race.html?id=${encodeURIComponent(r.slug)}">
+        ${badge}
         <div class="card-head">
           <div class="card-name">${escapeHtml(r.name)}</div>
           <div class="card-loc">${escapeHtml(r.location || '')}</div>
@@ -159,18 +183,52 @@
 
   async function load() {
     try {
-      const res = await fetch('races/index.json?_=' + Date.now(), { cache: 'no-store' });
-      if (!res.ok) throw new Error('Could not load races/index.json');
-      const manifest = await res.json();
-      const races = manifest.races || [];
+      await Race.hub.load();
+      const isProxy = Race.hub.isProxyMode();
+      const isAuthed = isProxy && Race.auth.has();
+
+      // Public manifest (anonymous) — always loaded direct from Pages so it
+      // works without a worker. Treats 404 as "no manifest yet" (empty hub).
+      let publicRaces = [];
+      try {
+        const res = await fetch('races/index.json?_=' + Date.now(), { cache: 'no-store' });
+        if (res.ok) {
+          const manifest = await res.json();
+          publicRaces = manifest.races || [];
+        }
+      } catch (e) { /* empty hub is fine */ }
+
+      // If the user is signed in via the proxy, /my-races merges public races
+      // (annotated with their role) plus any private races they're invited to.
+      let races = publicRaces;
+      let myErr = null;
+      if (isAuthed) {
+        try {
+          const my = await Race.api.myRaces();
+          races = (my && my.races) || races;
+        } catch (err) {
+          myErr = err;
+          // Fall back to the public list; the error is rendered as a soft notice below.
+        }
+      }
 
       const body = document.getElementById('body');
+      const sessionEmail = Race.auth.email();
+      const who = isProxy
+        ? (isAuthed
+            ? `<span class="who">Signed in as <span class="em">${escapeHtml(sessionEmail)}</span> · <a href="#" id="lk-signout" style="color: var(--accent);">Sign out</a></span>`
+            : `<span class="who"><a href="setup.html" style="color: var(--accent);">Sign in</a> to see your private races</span>`)
+        : '';
+
       if (races.length === 0) {
         body.innerHTML = `
           <div class="empty">
             <h2>No races yet</h2>
-            <p>Set up your first race with the wizard — it'll handle the GitHub commits for you, then you'll have a live dashboard and pit board ready for race day.</p>
+            <p>${isAuthed
+              ? "Set up your first race with the wizard. You'll be its only editor; you can invite crew and generate share links from the race page after creation."
+              : "Set up your first race with the wizard — it'll handle the GitHub commits for you, then you'll have a live dashboard and pit board ready for race day."}</p>
             <a class="cta" href="setup.html">Set up a race →</a>
+            ${who ? `<div style="margin-top: 18px;">${who}</div>` : ''}
           </div>
         `;
       } else {
@@ -178,10 +236,20 @@
         body.innerHTML = `
           <div class="hub-actions">
             <a class="btn primary" href="setup.html">+ New race</a>
+            <span class="spacer"></span>
+            ${who}
           </div>
+          ${myErr ? `<div class="error-banner" style="display:block; margin-bottom: 16px;">Could not load private races: ${escapeHtml(myErr.message)}</div>` : ''}
           <div class="cards">${sorted.map(renderCard).join('')}</div>
         `;
       }
+
+      const so = document.getElementById('lk-signout');
+      if (so) so.addEventListener('click', (e) => {
+        e.preventDefault();
+        Race.auth.logout();
+        load();
+      });
 
       // Repo link for footer
       const cfg = Race.config.load() || Race.config.detectDefaults();

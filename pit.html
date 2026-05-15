@@ -238,7 +238,7 @@
 
   <!-- Login form (proxy mode) -->
   <div class="conn-form" id="login-form" hidden>
-    <div class="row"><label>Username</label><input type="text" id="login-username" autocomplete="username" spellcheck="false" /></div>
+    <div class="row"><label>Email</label><input type="email" id="login-username" autocomplete="username" spellcheck="false" /></div>
     <div class="row"><label>Password</label><input type="password" id="login-password" autocomplete="current-password" /></div>
     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
       <button class="btn primary" id="login-submit">Sign in</button>
@@ -329,7 +329,7 @@
       if (s && s.session && (!s.expiresAt || s.expiresAt > Date.now())) {
         const expIn = s.expiresAt ? Math.max(0, Math.floor((s.expiresAt - Date.now()) / 60000)) : null;
         dot.className = 'status-dot connected';
-        txt.innerHTML = `Signed in as <strong>${s.username}</strong>${expIn != null ? ` · session ${expIn}m left` : ''}`;
+        txt.innerHTML = `Signed in as <strong>${s.email || s.username || '?'}</strong>${expIn != null ? ` · session ${expIn}m left` : ''}`;
       } else {
         dot.className = 'status-dot';
         txt.textContent = 'Not signed in · button presses will fail until you sign in.';
@@ -350,7 +350,7 @@
   function fillConnForm() {
     if (isProxyMode()) {
       const s = Race.auth.loadSession();
-      document.getElementById('login-username').value = s?.username || '';
+      document.getElementById('login-username').value = s?.email || s?.username || '';
       document.getElementById('login-password').value = '';
     } else {
       const c = Race.config.load() || Race.config.detectDefaults();
@@ -405,14 +405,14 @@
   }
 
   async function doLogin() {
-    const username = document.getElementById('login-username').value.trim();
+    const email = document.getElementById('login-username').value.trim();
     const password = document.getElementById('login-password').value;
-    if (!username || !password) { alert('Username and password required.'); return; }
+    if (!email || !password) { alert('Email and password required.'); return; }
     const btn = document.getElementById('login-submit');
     const orig = btn.textContent;
     btn.textContent = 'Signing in…'; btn.disabled = true;
     try {
-      await Race.auth.login(username, password);
+      await Race.auth.login(email, password);
       btn.textContent = 'Signed in ✓';
       document.getElementById('login-password').value = '';
       hideConnForm();

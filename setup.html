@@ -166,14 +166,13 @@
     <!-- Login (proxy mode) -->
     <div id="auth-login" style="display:none;">
       <div class="config-help">
-        Sign in with the username and password your hub admin set up. The
-        worker on Cloudflare commits race files on your behalf — no GitHub
-        token needed on this device.
+        Sign in with your email and password. The worker on Cloudflare commits
+        race files on your behalf — no GitHub token needed on this device.
       </div>
       <div class="grid-2">
         <label class="field">
-          <span class="lbl">Username</span>
-          <input type="text" id="login-username" autocomplete="username" spellcheck="false" />
+          <span class="lbl">Email</span>
+          <input type="email" id="login-username" autocomplete="username" spellcheck="false" />
         </label>
         <label class="field">
           <span class="lbl">Password</span>
@@ -229,6 +228,28 @@
       <input type="text" id="race-name" placeholder="e.g. Sangre de Cristo 100" />
       <span class="hint">Slug: <code id="slug-preview" style="color: var(--text);">—</code></span>
     </label>
+    <div class="field" id="visibility-field" style="display:none;">
+      <span class="lbl">Visibility</span>
+      <div class="radio-group" id="visibility-group">
+        <label>
+          <input type="radio" name="vis" value="public" checked />
+          <div class="radio-content">
+            <span class="title">Public</span>
+            <span class="desc">Anyone can find it from the hub and view live without an account. Crew you list can edit.</span>
+          </div>
+        </label>
+        <label>
+          <input type="radio" name="vis" value="private" />
+          <div class="radio-content">
+            <span class="title">Private</span>
+            <span class="desc">Not listed publicly. Crew + viewers you invite get access; share links let people view without an account.</span>
+          </div>
+        </label>
+      </div>
+      <p class="hint" style="margin-top:8px; color: var(--text-muted); font-size:11px;" id="vis-note">
+        You'll be set as the creator and only editor. Add more crew from the race page after creation.
+      </p>
+    </div>
     <label class="field">
       <span class="lbl">Location</span>
       <input type="text" id="race-location" placeholder="Westcliffe, CO" />
@@ -376,6 +397,7 @@
   // ---------- state ----------
   const state = {
     courseType: 'segments',
+    visibility: 'public',
     aidStations: [
       { name: 'Start', mileage: 0, arriveCutoffHours: '' },
       { name: 'Finish', mileage: '', arriveCutoffHours: '' }
@@ -394,6 +416,10 @@
     document.getElementById('auth-login').style.display = proxy ? '' : 'none';
     document.getElementById('auth-pat').style.display = proxy ? 'none' : '';
     document.getElementById('auth-section-title').textContent = proxy ? 'Sign in' : 'GitHub connection';
+    // Visibility + access control only make sense in proxy mode (which is where
+    // we know who the user is). In direct/PAT mode every race is implicitly
+    // public — anyone with the repo URL can read, and anyone with a PAT can write.
+    document.getElementById('visibility-field').style.display = proxy ? '' : 'none';
   }
 
   function renderGhStatus() {
@@ -405,7 +431,8 @@
       if (s && s.session && (!s.expiresAt || s.expiresAt > Date.now())) {
         const expIn = s.expiresAt ? Math.max(0, Math.floor((s.expiresAt - Date.now()) / 60000)) : null;
         dot.className = 'status-dot connected';
-        txt.innerHTML = `Signed in as ${s.username}${expIn != null ? ` · ${expIn}m left` : ''}`;
+        const who = s.email || s.username || '?';
+        txt.innerHTML = `Signed in as ${who}${expIn != null ? ` · ${expIn}m left` : ''}`;
         logout.style.display = '';
       } else {
         dot.className = 'status-dot';
@@ -431,7 +458,7 @@
   function fillGhForm() {
     if (isProxyMode()) {
       const s = Race.auth.loadSession();
-      document.getElementById('login-username').value = s?.username || '';
+      document.getElementById('login-username').value = s?.email || s?.username || '';
       document.getElementById('login-password').value = '';
     } else {
       const cfg = Race.config.load() || Race.config.detectDefaults();
@@ -480,14 +507,14 @@
   }
 
   async function onLogin() {
-    const username = document.getElementById('login-username').value.trim();
+    const email = document.getElementById('login-username').value.trim();
     const password = document.getElementById('login-password').value;
-    if (!username || !password) { alert('Username and password required.'); return; }
+    if (!email || !password) { alert('Email and password required.'); return; }
     const btn = document.getElementById('btn-login');
     const orig = btn.textContent;
     btn.textContent = 'Signing in…'; btn.disabled = true;
     try {
-      await Race.auth.login(username, password);
+      await Race.auth.login(email, password);
       document.getElementById('login-password').value = '';
       btn.textContent = 'Signed in ✓';
       renderGhStatus();
@@ -569,10 +596,30 @@
     return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00${sign}${pad(Math.floor(abs/60))}:${pad(abs%60)}`;
   }
 
-  function updateSlug() {
+  // Generates a 6-char unguessable suffix for private races. We persist it
+  // on first computation so the preview is stable while the user types.
+  function privateSuffix() {
+    if (state.privateSuffix) return state.privateSuffix;
+    const bytes = new Uint8Array(4);
+    crypto.getRandomValues(bytes);
+    const alpha = 'abcdefghjkmnpqrstuvwxyz23456789';
+    let s = '';
+    for (const b of bytes) s += alpha[b % alpha.length];
+    state.privateSuffix = s + alpha[(bytes[0] >> 4) % alpha.length] + alpha[(bytes[1] >> 4) % alpha.length];
+    return state.privateSuffix;
+  }
+
+  function effectiveSlug() {
     const name = document.getElementById('race-name').value;
-    document.getElementById('slug-preview').textContent = name ? Race.slug(name) : '—';
-    document.getElementById('dest-preview').textContent = name ? `races/${Race.slug(name)}/` : 'races/<slug>/';
+    if (!name) return '';
+    const base = Race.slug(name);
+    return state.visibility === 'private' ? `${base}-${privateSuffix()}` : base;
+  }
+
+  function updateSlug() {
+    const slug = effectiveSlug();
+    document.getElementById('slug-preview').textContent = slug || '—';
+    document.getElementById('dest-preview').textContent = slug ? `races/${slug}/` : 'races/<slug>/';
   }
 
   // ---------- build payload ----------
@@ -582,10 +629,16 @@
     const startTime = localDtToIso(document.getElementById('race-start').value);
     const totalHours = parseFloat(document.getElementById('race-cutoff').value);
     const lastLegStartHours = parseFloat(document.getElementById('race-last-leg-cutoff').value);
+    const proxy = isProxyMode();
+    const me = proxy ? (Race.auth.email() || '') : '';
 
     const cfg = {
       name, location, startTime,
       courseType: state.courseType,
+      visibility: proxy ? state.visibility : 'public',
+      createdBy: me || null,
+      editors: me ? [me] : [],
+      viewers: [],
       cutoffs: { totalHours },
       course: {},
       runners: state.runners
@@ -682,7 +735,7 @@
     }
 
     const name = document.getElementById('race-name').value.trim();
-    const slug = Race.slug(name);
+    const slug = effectiveSlug();
     const raceConfig = buildConfig(slug);
     const errs = validate(raceConfig, slug);
     if (errs.length) { showError(errs.join(' ')); return; }
@@ -721,14 +774,20 @@
           `hub: create race ${slug} (course.gpx)`);
       }
 
-      progressLine(`Updating races/index.json…`);
-      await Race.gh.mutateJson(cfg, 'races/index.json', (data) => {
-        const out = data && Array.isArray(data.races) ? data : { races: [] };
-        out.races = (out.races || []).filter(r => r.slug !== slug);
-        out.races.push(indexEntry);
-        out.lastUpdated = new Date().toISOString();
-        return out;
-      }, `hub: register race ${slug}`);
+      // Private races stay out of the public manifest. Logged-in viewers
+      // see them via the worker's /my-races endpoint instead.
+      if (raceConfig.visibility !== 'private') {
+        progressLine(`Updating races/index.json…`);
+        await Race.gh.mutateJson(cfg, 'races/index.json', (data) => {
+          const out = data && Array.isArray(data.races) ? data : { races: [] };
+          out.races = (out.races || []).filter(r => r.slug !== slug);
+          out.races.push(indexEntry);
+          out.lastUpdated = new Date().toISOString();
+          return out;
+        }, `hub: register race ${slug}`);
+      } else {
+        progressLine(`Private race — skipping public manifest.`);
+      }
 
       progressLine(`Done. Redirecting…`, 'ok');
       setTimeout(() => {
@@ -761,6 +820,16 @@
 
   document.querySelectorAll('input[name="ct"]').forEach(r => {
     r.addEventListener('change', e => setCourseType(e.target.value));
+  });
+  document.querySelectorAll('input[name="vis"]').forEach(r => {
+    r.addEventListener('change', e => {
+      state.visibility = e.target.value;
+      // Recompute slug preview since private races get the random suffix.
+      updateSlug();
+      document.getElementById('vis-note').textContent = state.visibility === 'private'
+        ? "Private — not listed on the hub. Slug gets a random suffix so it can't be guessed. You'll be the only editor at first; add crew + share links from the race page after creation."
+        : "Public — anyone with the hub URL can find and view live. You'll be the only editor at first; add more crew from the race page.";
+    });
   });
 
   document.getElementById('add-aid').addEventListener('click', () => {
