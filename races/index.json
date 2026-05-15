@@ -1,4 +1,16 @@
 {
-  "races": [],
-  "lastUpdated": null
+  "races": [
+    {
+      "slug": "highball-to-thurmond-ultra",
+      "name": "Highball to Thurmond Ultra",
+      "location": "Thurmond, WV",
+      "startTime": "2026-05-17T05:00:00-05:00",
+      "courseType": "segments",
+      "totalDistanceMi": 50,
+      "runnerNames": [
+        "Soft Serve"
+      ]
+    }
+  ],
+  "lastUpdated": "2026-05-15T23:27:50.501Z"
 }
