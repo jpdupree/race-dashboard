@@ -254,11 +254,20 @@
       <span class="lbl">Location</span>
       <input type="text" id="race-location" placeholder="Westcliffe, CO" />
     </label>
-    <label class="field">
+    <div class="field">
       <span class="lbl">Start date / time (local)</span>
-      <input type="datetime-local" id="race-start" />
+      <div class="datetime-row">
+        <input type="date" id="race-date" />
+        <select id="race-hour" aria-label="Start hour"></select>
+        <span class="dt-colon">:</span>
+        <select id="race-minute" aria-label="Start minute"></select>
+        <select id="race-ampm" aria-label="AM or PM">
+          <option value="AM">AM</option>
+          <option value="PM">PM</option>
+        </select>
+      </div>
       <span class="hint">Saved with this device's UTC offset baked in.</span>
-    </label>
+    </div>
     <div class="grid-2">
       <label class="field">
         <span class="lbl">Total cutoff (hours)</span>
@@ -584,16 +593,41 @@
       .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  // Convert datetime-local to ISO with this device's tz offset.
-  function localDtToIso(local) {
-    if (!local) return null;
-    const d = new Date(local);
-    const off = -d.getTimezoneOffset();
+  // Populate the hour (1–12) and minute (5-min steps) dropdowns, defaulting
+  // to a typical ultra start of 6:00 AM.
+  function fillTimeDropdowns() {
+    const hourSel = document.getElementById('race-hour');
+    for (let h = 1; h <= 12; h++) {
+      hourSel.add(new Option(String(h), String(h)));
+    }
+    const minSel = document.getElementById('race-minute');
+    for (let m = 0; m < 60; m += 5) {
+      minSel.add(new Option(String(m).padStart(2, '0'), String(m)));
+    }
+    hourSel.value = '6';
+    minSel.value = '0';
+    document.getElementById('race-ampm').value = 'AM';
+  }
+
+  // Build an ISO timestamp (with this device's UTC offset) from the
+  // date input + the hour/minute/AM-PM dropdowns.
+  function buildStartIso() {
+    const date = document.getElementById('race-date').value; // "YYYY-MM-DD"
+    if (!date) return null;
+    let hour = parseInt(document.getElementById('race-hour').value, 10);
+    const minute = parseInt(document.getElementById('race-minute').value, 10);
+    const ampm = document.getElementById('race-ampm').value;
+    if (isNaN(hour) || isNaN(minute)) return null;
+    if (ampm === 'PM' && hour !== 12) hour += 12;
+    if (ampm === 'AM' && hour === 12) hour = 0;
+    const [y, mo, d] = date.split('-').map(Number);
+    const dt = new Date(y, mo - 1, d, hour, minute, 0, 0);
+    if (isNaN(dt.getTime())) return null;
+    const off = -dt.getTimezoneOffset();
     const sign = off >= 0 ? '+' : '-';
     const abs = Math.abs(off);
     const pad = n => String(n).padStart(2, '0');
-    const pad3 = n => String(n).padStart(3, '0').slice(0, 2);
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00${sign}${pad(Math.floor(abs/60))}:${pad(abs%60)}`;
+    return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}:00${sign}${pad(Math.floor(abs/60))}:${pad(abs%60)}`;
   }
 
   // Generates a 6-char unguessable suffix for private races. We persist it
@@ -626,7 +660,7 @@
   function buildConfig(slug) {
     const name = document.getElementById('race-name').value.trim();
     const location = document.getElementById('race-location').value.trim();
-    const startTime = localDtToIso(document.getElementById('race-start').value);
+    const startTime = buildStartIso();
     const totalHours = parseFloat(document.getElementById('race-cutoff').value);
     const lastLegStartHours = parseFloat(document.getElementById('race-last-leg-cutoff').value);
     const proxy = isProxyMode();
@@ -893,6 +927,7 @@
     applyAuthMode();
     fillGhForm();
     renderGhStatus();
+    fillTimeDropdowns();
     renderAidRows();
     renderRunnerRows();
     setCourseType(state.courseType);

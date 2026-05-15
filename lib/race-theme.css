@@ -91,6 +91,35 @@ footer.site {
   letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-muted);
 }
 
+/* Account bar — slim signed-in/sign-out strip above the page header.
+   Injected on every page by Race.mountAccountWidget() in race-core.js. */
+.account-bar {
+  display: flex; justify-content: flex-end; align-items: center; gap: 10px;
+  padding: 6px 0 2px; margin-bottom: 2px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+}
+.account-bar .account-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green); box-shadow: 0 0 6px var(--green); flex: none;
+}
+.account-bar .account-email {
+  color: var(--text-dim); letter-spacing: 0.04em;
+  max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.account-bar button.account-signout,
+.account-bar a.account-signin {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-muted); padding: 5px 10px; border-radius: 3px;
+  cursor: pointer; text-decoration: none;
+}
+.account-bar button.account-signout:hover,
+.account-bar a.account-signin:hover {
+  color: var(--accent); border-color: var(--accent);
+}
+@media print { .account-bar { display: none !important; } }
+
 .error-banner {
   background: rgba(255, 89, 89, 0.1); border: 1px solid var(--red);
   color: var(--red); padding: 16px; border-radius: 4px; margin-bottom: 24px;
@@ -103,13 +132,21 @@ footer.site {
 }
 
 input[type="text"], input[type="password"], input[type="number"],
-input[type="datetime-local"], textarea, select {
+input[type="datetime-local"], input[type="date"], input[type="time"],
+input[type="email"], textarea, select {
   background: var(--bg-elevated); color: var(--text);
   border: 1px solid var(--border-bright); border-radius: 4px;
   padding: 10px 12px; font-family: 'JetBrains Mono', monospace; font-size: 13px;
   width: 100%;
 }
 input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
+
+/* Split date + time control (setup wizard) */
+.datetime-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.datetime-row input[type="date"] { flex: 2 1 150px; width: auto; }
+.datetime-row select { flex: 1 1 64px; width: auto; }
+.datetime-row .dt-colon { color: var(--text-muted); font-weight: 700; }
 label.field {
   display: block; margin-bottom: 14px;
 }
