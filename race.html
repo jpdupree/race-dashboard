@@ -436,6 +436,11 @@
     return { onpace: 'On Pace', tight: 'Tight', offpace: 'Off Pace', notstarted: 'Not Started', finished: 'Finished' }[s] || s;
   }
 
+  // A loop with no aid stations — rendered as the lap grid rather than rows.
+  function isSimpleLoop() {
+    return cfg && cfg.courseType === 'loops' && !((cfg.course && cfg.course.loopSegments) || []).length;
+  }
+
   function loopCellClass(durationSec, status) {
     if (durationSec == null) return '';
     if (status === 'onpace' || status === 'finished') return 'done';
@@ -539,7 +544,10 @@
       const noteRow = noteParts.length
         ? `<tr class="note-row${noteOldCls}"><td colspan="7">${escapeHtml(noteParts.join(' · '))}</td></tr>`
         : '';
-      const legLabel = cfg.courseType === 'segments' && segDef
+      // Show the leg name for segments and loops-with-aids; a simple
+      // lap-only loop just shows the index.
+      const showName = segDef && segDef.name && !isSimpleLoop();
+      const legLabel = showName
         ? `${l.index} <span style="color: var(--text-muted); font-size: 10px; display: block;">${escapeHtml(segDef.name)}</span>` : l.index;
       return `
         <tr class="leg-row${oldCls}">
@@ -573,11 +581,14 @@
     const totalDist = c.courseDist;
     const totalCutSec = (cfg.cutoffs?.totalHours || 0) * 3600;
 
-    const legsBlock = cfg.courseType === 'loops'
+    // A loop with aid stations expands into per-segment legs, so it renders
+    // like a segments course (each row already names its lap). Only a simple
+    // lap-only loop uses the lap grid.
+    const legsBlock = isSimpleLoop()
       ? `<div class="legs-grid">${loopLegCells(runner, c)}</div>`
       : `<div class="seg-list">${segmentRows(runner, c)}</div>`;
 
-    const legUnit = cfg.courseType === 'loops' ? 'Laps' : 'Segments';
+    const legUnit = isSimpleLoop() ? 'Laps' : (cfg.courseType === 'segments' ? 'Segments' : 'Legs');
 
     return `
       <article class="runner" style="--runner-color: ${color};">

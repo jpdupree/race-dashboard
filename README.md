@@ -26,6 +26,10 @@ schema. Each "leg" has a `startTime` (left the previous aid/pit) and
 
 - **Loops** — N identical laps from one pit. Config:
   `course: { loopCount, loopDistanceMi, loopElevationGainFt? }`.
+  A loop may optionally carry `loopSegments` — the aid-to-aid segments of
+  one lap (same shape as `segments` below). When present, the loop is
+  treated as that segment pattern repeated `loopCount` times, so each lap
+  is split into timed checkpoints; total legs = `loopCount × loopSegments.length`.
 - **Segments** — Point-to-point legs between named aid stations. Config:
   `course: { segments: [{ name, fromAid, toAid, distanceMi,
   elevationGainFt?, elevationLossFt?, arriveCutoffHours? }] }`.

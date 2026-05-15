@@ -237,7 +237,10 @@
       const noteRow = noteParts.length
         ? `<tr class="note"><td colspan="8">${escapeHtml(noteParts.join(' · '))}</td></tr>`
         : '';
-      const legName = cfg.courseType === 'segments' && def
+      // Simple lap-only loops just show the index; segments and
+      // loops-with-aids show the leg name beneath it.
+      const showName = def && def.name && !(cfg.courseType === 'loops' && !(cfg.course.loopSegments || []).length);
+      const legName = showName
         ? `<span style="font-size: 10px; color: var(--text-muted); display: block;">${escapeHtml(def.name)}</span>`
         : '';
       return `
@@ -262,7 +265,7 @@
             <div class="runner-bib">${escapeHtml(runner.bib || '')}</div>
           </div>
           <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.15em;">
-            ${c.legsDone}/${c.totalLegs} ${cfg.courseType === 'loops' ? 'laps' : 'legs'} · ${c.milesDone.toFixed(1)} mi
+            ${c.legsDone}/${c.totalLegs} ${cfg.courseType === 'loops' && !(cfg.course.loopSegments || []).length ? 'laps' : 'legs'} · ${c.milesDone.toFixed(1)} mi
           </div>
         </div>
         <div class="summary-grid">
@@ -299,7 +302,9 @@
       <div><strong>${total.toFixed(1)} mi</strong> <span>total</span></div>
       <div><strong>+${elev.gainFt.toLocaleString()} ft</strong> <span>gain</span></div>
       <div><strong>-${elev.lossFt.toLocaleString()} ft</strong> <span>loss</span></div>
-      <div><strong>${cfg.courseType === 'loops' ? cfg.course.loopCount + ' × loop' : (cfg.course.segments?.length || 0) + ' segments'}</strong></div>
+      <div><strong>${cfg.courseType === 'loops'
+        ? cfg.course.loopCount + ' × loop' + ((cfg.course.loopSegments || []).length ? ` · ${cfg.course.loopSegments.length} aid seg` : '')
+        : (cfg.course.segments?.length || 0) + ' segments'}</strong></div>
     `;
 
     // Elevation profile
