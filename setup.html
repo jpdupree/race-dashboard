@@ -311,12 +311,35 @@
         <label class="field">
           <span class="lbl">Distance per loop (mi)</span>
           <input type="number" id="loop-distance" min="0" step="0.1" value="10" />
+          <span class="hint">Used only when no loop aid stations are listed.</span>
         </label>
         <label class="field">
           <span class="lbl">Elevation gain per loop (ft, optional)</span>
           <input type="number" id="loop-gain" min="0" step="1" />
-          <span class="hint">Computed from GPX if uploaded.</span>
+          <span class="hint">Used only when no loop aid stations are listed.</span>
         </label>
+      </div>
+
+      <div style="margin-top: 8px;">
+        <div class="seg-summary" id="loop-aid-summary"></div>
+        <table class="list" id="loop-aid-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Name</th>
+              <th>Lap mile</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="loop-aid-rows"></tbody>
+        </table>
+        <button type="button" class="add-row" id="add-loop-aid">+ Add loop aid station</button>
+        <p class="hint" style="margin-top:8px; color: var(--text-muted); font-size:11px;">
+          Optional. List the pit/start, each aid on the loop, and the lap end
+          (back at the pit) — mileages are within a single lap. With aid
+          stations listed, every lap is split into timed segments between them.
+          Leave the table empty for a simple lap-only loop.
+        </p>
       </div>
     </div>
 
@@ -411,6 +434,8 @@
       { name: 'Start', mileage: 0, arriveCutoffHours: '' },
       { name: 'Finish', mileage: '', arriveCutoffHours: '' }
     ],
+    // Aid stations within one lap (loops mode). Empty = simple lap-only loop.
+    loopAidStations: [],
     runners: [
       { name: '', bib: '', color: DEFAULT_COLORS[0] }
     ],
@@ -574,6 +599,31 @@
         : `<strong>${n - 1}</strong> segments · <strong>${(+total).toFixed(1)} mi</strong> total`;
   }
 
+  // ---------- loop aid stations ----------
+  function renderLoopAidRows() {
+    const tbody = document.getElementById('loop-aid-rows');
+    tbody.innerHTML = state.loopAidStations.map((a, i) => `
+      <tr>
+        <td style="font-family: 'JetBrains Mono', monospace; color: var(--text-muted); width: 30px;">${i+1}</td>
+        <td><input type="text" data-loopaid="${i}" data-k="name" value="${escapeAttr(a.name)}" placeholder="Aid name" /></td>
+        <td><input type="number" data-loopaid="${i}" data-k="mileage" value="${a.mileage === '' || a.mileage == null ? '' : a.mileage}" step="0.1" min="0" placeholder="0.0" ${i === 0 ? 'readonly style="opacity:0.6"' : ''} /></td>
+        <td>${i > 1 ? `<button type="button" class="row-del" data-del-loopaid="${i}" aria-label="Delete">×</button>` : ''}</td>
+      </tr>
+    `).join('');
+    renderLoopAidSummary();
+  }
+
+  function renderLoopAidSummary() {
+    const aids = state.loopAidStations.filter(a => a.name && (a.mileage !== '' && a.mileage != null));
+    const el = document.getElementById('loop-aid-summary');
+    if (aids.length < 2) {
+      el.innerHTML = 'Optional — add aid stations to time a split at each, every lap. Empty = simple lap-only loop.';
+    } else {
+      const total = +aids[aids.length - 1].mileage;
+      el.innerHTML = `<strong>${aids.length - 1}</strong> segments per lap · <strong>${total.toFixed(1)} mi</strong> per lap`;
+    }
+  }
+
   // ---------- runners ----------
   function renderRunnerRows() {
     const tbody = document.getElementById('runner-rows');
@@ -694,10 +744,20 @@
     if (state.courseType === 'loops') {
       const loopGain = parseFloat(document.getElementById('loop-gain').value);
       cfg.course = {
-        loopCount: parseInt(document.getElementById('loop-count').value, 10) || 0,
-        loopDistanceMi: parseFloat(document.getElementById('loop-distance').value) || 0
+        loopCount: parseInt(document.getElementById('loop-count').value, 10) || 0
       };
-      if (!isNaN(loopGain)) cfg.course.loopElevationGainFt = loopGain;
+      const loopAids = state.loopAidStations
+        .map(a => ({ ...a, mileage: a.mileage === '' ? null : parseFloat(a.mileage) }))
+        .filter(a => a.name && a.mileage != null && !isNaN(a.mileage));
+      if (loopAids.length >= 2) {
+        // Loop with timed checkpoints — store one lap's segments.
+        cfg.course.loopSegments = Race.course.segmentsFromAidStations(loopAids);
+        cfg.course.loopDistanceMi = +loopAids[loopAids.length - 1].mileage;
+      } else {
+        // Simple lap-only loop.
+        cfg.course.loopDistanceMi = parseFloat(document.getElementById('loop-distance').value) || 0;
+        if (!isNaN(loopGain)) cfg.course.loopElevationGainFt = loopGain;
+      }
     } else {
       const aids = state.aidStations
         .map(a => ({ ...a, mileage: a.mileage === '' ? null : parseFloat(a.mileage), arriveCutoffHours: a.arriveCutoffHours === '' ? null : parseFloat(a.arriveCutoffHours) }))
@@ -735,7 +795,10 @@
     if (!cfg.runners.length) errs.push('At least one runner is required.');
     if (cfg.courseType === 'loops') {
       if (!cfg.course.loopCount) errs.push('Loop count is required.');
-      if (!cfg.course.loopDistanceMi) errs.push('Loop distance is required.');
+      if (!cfg.course.loopDistanceMi) errs.push('Loop distance is required (set a distance per loop, or list loop aid stations).');
+      if (cfg.course.loopSegments && cfg.course.loopSegments.some(s => !(s.distanceMi > 0))) {
+        errs.push('Each loop segment needs a positive distance (check loop aid mileages are strictly increasing).');
+      }
     } else {
       if (!cfg.course.segments || cfg.course.segments.length < 1) errs.push('At least one segment (two aid stations) is required.');
       if (cfg.course.segments && cfg.course.segments.some(s => !(s.distanceMi > 0))) errs.push('Each segment needs a positive distance (check aid station mileages are strictly increasing).');
@@ -884,6 +947,28 @@
     renderAidRows();
   });
 
+  document.getElementById('add-loop-aid').addEventListener('click', () => {
+    // First add seeds the pit/start row so the user gets a usable pair.
+    if (state.loopAidStations.length === 0) {
+      state.loopAidStations.push({ name: 'Pit', mileage: 0 });
+    }
+    state.loopAidStations.push({ name: '', mileage: '' });
+    renderLoopAidRows();
+  });
+  document.getElementById('loop-aid-rows').addEventListener('input', (e) => {
+    const idx = e.target.dataset.loopaid;
+    const key = e.target.dataset.k;
+    if (idx == null || !key) return;
+    state.loopAidStations[+idx][key] = e.target.value;
+    renderLoopAidSummary();
+  });
+  document.getElementById('loop-aid-rows').addEventListener('click', (e) => {
+    const del = e.target.dataset.delLoopaid;
+    if (del == null) return;
+    state.loopAidStations.splice(+del, 1);
+    renderLoopAidRows();
+  });
+
   document.getElementById('add-runner').addEventListener('click', () => {
     const i = state.runners.length;
     state.runners.push({ name: '', bib: '', color: DEFAULT_COLORS[i % DEFAULT_COLORS.length] });
@@ -929,6 +1014,7 @@
     renderGhStatus();
     fillTimeDropdowns();
     renderAidRows();
+    renderLoopAidRows();
     renderRunnerRows();
     setCourseType(state.courseType);
     updateSlug();

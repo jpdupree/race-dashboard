@@ -584,26 +584,21 @@
   }
 
   function whereLine(runner, next) {
+    // legAt().name reads correctly for every course shape: "Start → Cabin"
+    // (segments), "Lap 3" (simple loop), "Lap 3 · Cabin → Ridge" (loop+aids).
     if (next.state === 'idle') {
       const first = Race.course.legAt(cfg, 1);
       if (!first) return 'Race not configured yet';
-      return cfg.courseType === 'loops'
-        ? `Ready to start Lap 1`
-        : `Ready: <strong>${escapeHtml(first.fromAid || 'Start')}</strong> <span class="arrow">→</span> <strong>${escapeHtml(first.toAid || '?')}</strong>`;
+      return `Ready: <strong>${escapeHtml(first.name)}</strong>`;
     }
     if (next.state === 'finished') return 'Finished';
     const def = Race.course.legAt(cfg, next.currentLegIndex);
     if (!def) return `Leg ${next.currentLegIndex}`;
     if (next.state === 'on-course') {
-      return cfg.courseType === 'loops'
-        ? `On course: <strong>Lap ${next.currentLegIndex}</strong>`
-        : `On course: <strong>${escapeHtml(def.fromAid || '')}</strong> <span class="arrow">→</span> <strong>${escapeHtml(def.toAid || '')}</strong>`;
+      return `On course: <strong>${escapeHtml(def.name)}</strong>`;
     }
-    // in-pit
     const nextDef = Race.course.legAt(cfg, next.nextLegIndex);
-    return cfg.courseType === 'loops'
-      ? `In pit · next: <strong>Lap ${next.nextLegIndex}</strong>`
-      : `At <strong>${escapeHtml(def.toAid || 'aid')}</strong> · next: <strong>${escapeHtml(nextDef?.toAid || '?')}</strong>`;
+    return `In pit · next: <strong>${escapeHtml(nextDef ? nextDef.name : '?')}</strong>`;
   }
 
   function renderRunner(runner) {
@@ -621,19 +616,19 @@
       buttonLabel = 'Finished'; buttonDisabled = true;
     } else if (next.state === 'on-course') {
       const def = Race.course.legAt(cfg, next.currentLegIndex);
-      buttonLabel = cfg.courseType === 'loops'
-        ? `Sign In · End Lap ${next.currentLegIndex}`
-        : `Sign In at ${def?.toAid || 'aid'}`;
+      buttonLabel = def && def.toAid
+        ? `Sign In at ${def.toAid}`
+        : `Sign In · End ${def ? def.name : 'leg'}`;
     } else if (next.state === 'in-pit') {
       const def = Race.course.legAt(cfg, next.nextLegIndex);
-      buttonLabel = cfg.courseType === 'loops'
-        ? `Sign Out · Start Lap ${next.nextLegIndex}`
-        : `Sign Out · ${def?.fromAid || '?'} → ${def?.toAid || '?'}`;
+      buttonLabel = def && def.toAid
+        ? `Sign Out · ${def.fromAid || '?'} → ${def.toAid}`
+        : `Sign Out · Start ${def ? def.name : 'leg'}`;
     } else {
       const def = Race.course.legAt(cfg, 1);
-      buttonLabel = cfg.courseType === 'loops'
-        ? `Sign Out · Start Lap 1`
-        : `Sign Out · Start (${def?.toAid || 'next aid'})`;
+      buttonLabel = def && def.toAid
+        ? `Sign Out · Start (${def.toAid})`
+        : `Sign Out · Start ${def ? def.name : 'Lap 1'}`;
     }
 
     const since = next.lastTs || '';
@@ -651,8 +646,7 @@
 
     const legOptions = completedLegs.map(l => {
       const def = Race.course.legAt(cfg, l.index);
-      const labelText = cfg.courseType === 'segments' && def?.toAid
-        ? `Leg ${l.index} · arr. ${def.toAid}` : `Lap ${l.index}`;
+      const labelText = (def && def.name) ? def.name : `Leg ${l.index}`;
       return `<option value="${l.index}" ${l.index === selectedLegIdx ? 'selected' : ''}>${escapeHtml(labelText)}</option>`;
     }).join('');
 
