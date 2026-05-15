@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="lib/race-theme.css?v=4">
+<link rel="stylesheet" href="lib/race-theme.css?v=5">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
   .cutoffs {
@@ -395,6 +395,20 @@
     font-family: 'JetBrains Mono', monospace; font-size: 11px;
     fill: var(--text-muted);
   }
+  .course-elev .elev-runner-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+  }
+  /* Predicted runner position dots (map + elevation profile) */
+  .runner-dot { animation: runnerPulse 2s ease-in-out infinite; }
+  @keyframes runnerPulse {
+    0%, 100% { stroke-opacity: 1; }
+    50% { stroke-opacity: 0.35; }
+  }
+  .leaflet-tooltip.runner-dot-label {
+    background: rgba(12, 13, 16, 0.85); border: none; box-shadow: none;
+    color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  }
+  .leaflet-tooltip.runner-dot-label::before { display: none; }
 </style>
 </head>
 <body>
@@ -452,7 +466,7 @@
 </footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="lib/race-core.js?v=4"></script>
+<script src="lib/race-core.js?v=5"></script>
 <script>
   const REFRESH_MS = 15000;
   const slug = Race.qs('id');
@@ -846,6 +860,7 @@
       const container = document.getElementById('runners');
       container.classList.toggle('single', merged.length === 1);
       container.innerHTML = merged.map(renderRunner).join('');
+      mergedRunners = merged;
 
       document.getElementById('error').style.display = 'none';
       renderShareBanner();
@@ -854,6 +869,7 @@
       updateLastUpdated();
       tick();
       initCourseVisuals();
+      updateTracking();
     } catch (err) {
       const e = document.getElementById('error');
       e.style.display = 'block';
@@ -862,12 +878,14 @@
   }
 
   // ---------- course visuals (Leaflet map + elevation profile) ----------
-  // Both are built from course.gpx. Built once; the periodic refresh skips
-  // re-init after the first success. A missing GPX (or Pages lag right after
-  // creation) just means a retry on the next refresh.
+  // The route, aid markers and elevation profile are built once from
+  // course.gpx. Predicted runner positions are refreshed on every load.
   const AID_END_COLOR = '#6ee7a8';
   const AID_MID_COLOR = '#ff6b3d';
-  let courseVisualsDone = false;
+  let courseVisualsReady = false;
+  let courseMap = null, courseGpxPts = null, mapRunnerLayer = null;
+  let elevX = null, elevY = null;          // elevation-SVG scale fns
+  let mergedRunners = [];                  // set by load()
 
   // The GPX point nearest a given cumulative mileage.
   function nearestGpxPoint(pts, mi) {
@@ -880,7 +898,7 @@
   }
 
   async function initCourseVisuals() {
-    if (courseVisualsDone) return;
+    if (courseVisualsReady) return;
 
     let gpxText;
     try {
@@ -893,7 +911,8 @@
     try { pts = Race.gpx.parse(gpxText); } catch (e) { return; }
     if (!pts.length) return;
 
-    courseVisualsDone = true;
+    courseGpxPts = pts;
+    courseVisualsReady = true;
     document.getElementById('course-map-section').style.display = '';
     const aids = Race.course.aidStations(cfg);
 
@@ -906,33 +925,38 @@
     try { renderElevationProfile(pts, aids); } catch (e) {}
 
     // Leaflet map — skipped gracefully if the library is unavailable.
-    if (typeof L === 'undefined') {
+    if (typeof L !== 'undefined') {
+      courseMap = L.map('course-map', { scrollWheelZoom: false });
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd', maxZoom: 19
+      }).addTo(courseMap);
+
+      const line = L.polyline(pts.map(p => [p.lat, p.lon]), { color: AID_MID_COLOR, weight: 3, opacity: 0.9 }).addTo(courseMap);
+      courseMap.fitBounds(line.getBounds(), { padding: [24, 24] });
+
+      aids.forEach((aid, i) => {
+        const p = nearestGpxPoint(pts, aid.mileage);
+        const isEnd = i === 0 || i === aids.length - 1;
+        L.circleMarker([p.lat, p.lon], {
+          radius: isEnd ? 6 : 5, color: '#fff', weight: 2,
+          fillColor: isEnd ? AID_END_COLOR : AID_MID_COLOR, fillOpacity: 1
+        }).addTo(courseMap).bindTooltip(
+          `${aid.name} · ${aid.mileage.toFixed(1)} mi`,
+          { className: 'aid-marker-label', direction: 'top' }
+        );
+      });
+
+      mapRunnerLayer = L.layerGroup().addTo(courseMap);
+    } else {
       document.getElementById('course-map').style.display = 'none';
-      return;
     }
-    const courseMap = L.map('course-map', { scrollWheelZoom: false });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd', maxZoom: 19
-    }).addTo(courseMap);
 
-    const line = L.polyline(pts.map(p => [p.lat, p.lon]), { color: AID_MID_COLOR, weight: 3, opacity: 0.9 }).addTo(courseMap);
-    courseMap.fitBounds(line.getBounds(), { padding: [24, 24] });
-
-    aids.forEach((aid, i) => {
-      const p = nearestGpxPoint(pts, aid.mileage);
-      const isEnd = i === 0 || i === aids.length - 1;
-      L.circleMarker([p.lat, p.lon], {
-        radius: isEnd ? 6 : 5, color: '#fff', weight: 2,
-        fillColor: isEnd ? AID_END_COLOR : AID_MID_COLOR, fillOpacity: 1
-      }).addTo(courseMap).bindTooltip(
-        `${aid.name} · ${aid.mileage.toFixed(1)} mi`,
-        { className: 'aid-marker-label', direction: 'top' }
-      );
-    });
+    updateTracking();
   }
 
   // Elevation vs. distance SVG, with the same aid-station markers as the map.
+  // A trailing <g id="elev-runners"> is left empty for updateTracking().
   function renderElevationProfile(pts, aids) {
     const svg = document.getElementById('course-elev');
     const W = 1000, H = 200, padL = 8, padR = 8, padT = 30, padB = 14;
@@ -947,6 +971,7 @@
     const x = mi => padL + (Math.min(mi, totalMi) / totalMi) * plotW;
     const y = ele => padT + (1 - (ele - minE) / (maxE - minE)) * plotH;
     const baseY = padT + plotH;
+    elevX = x; elevY = y;
 
     const linePts = pts.map(p => `${x(p.dist).toFixed(1)},${y(p.ele).toFixed(1)}`);
     const linePath = 'M' + linePts.join(' L');
@@ -973,7 +998,68 @@
     svg.innerHTML = `
       <path class="elev-area" d="${areaPath}" />
       <path class="elev-line" d="${linePath}" />
-      ${marks}`;
+      ${marks}
+      <g id="elev-runners"></g>`;
+  }
+
+  // ---------- predictive runner tracking ----------
+  // Position estimate comes from Race.compute.predictedMileage. Runners who
+  // haven't started yet get no dot.
+  function predictedPosition(runner) {
+    const pos = Race.compute.predictedMileage(runner, cfg);
+    return pos.state === 'idle' ? null : pos;
+  }
+
+  function trackingLabel(pos) {
+    if (pos.state === 'finished') return 'finished';
+    if (pos.state === 'in-pit') return `in pit · ${pos.courseMi.toFixed(1)} mi`;
+    return `~${pos.courseMi.toFixed(1)} mi (est)`;
+  }
+
+  // Refreshes the predicted runner dots on the map and elevation profile.
+  function updateTracking() {
+    if (!courseVisualsReady || !courseGpxPts) return;
+    const loopMode = cfg.courseType === 'loops';
+    const loopDist = loopMode ? Race.course.loopDistance(cfg) : 0;
+    // The GPX covers one lap for loops, the whole course for segments.
+    const trackMi = courseMi =>
+      (loopMode && loopDist > 0) ? (courseMi % loopDist) : courseMi;
+
+    if (courseMap && mapRunnerLayer) {
+      mapRunnerLayer.clearLayers();
+      mergedRunners.forEach(r => {
+        const pos = predictedPosition(r);
+        if (!pos) return;
+        const p = nearestGpxPoint(courseGpxPts, trackMi(pos.courseMi));
+        const color = r.color || AID_MID_COLOR;
+        L.circleMarker([p.lat, p.lon], {
+          radius: 7, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1,
+          className: 'runner-dot'
+        }).addTo(mapRunnerLayer).bindTooltip(
+          `${r.name} · ${trackingLabel(pos)}`,
+          { permanent: true, direction: 'right', offset: [8, 0], className: 'runner-dot-label' }
+        );
+      });
+    }
+
+    const g = document.getElementById('elev-runners');
+    if (g && elevX && elevY) {
+      g.innerHTML = mergedRunners.map(r => {
+        const pos = predictedPosition(r);
+        if (!pos) return '';
+        const tmi = trackMi(pos.courseMi);
+        const pt = nearestGpxPoint(courseGpxPts, tmi);
+        const cx = elevX(tmi), cy = elevY(pt.ele);
+        const color = r.color || AID_MID_COLOR;
+        return `
+          <circle class="runner-dot" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="5"
+                  fill="${color}" stroke="#0c0d10" stroke-width="1.5">
+            <title>${escapeHtml(r.name)} · ${escapeHtml(trackingLabel(pos))}</title>
+          </circle>
+          <text class="elev-runner-label" x="${cx.toFixed(1)}" y="${(cy - 9).toFixed(1)}"
+                text-anchor="middle" fill="${color}">${escapeHtml(r.name)}</text>`;
+      }).join('');
+    }
   }
 
   // ---------- share banner (anonymous shared view) ----------
