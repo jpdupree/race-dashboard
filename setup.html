@@ -153,44 +153,71 @@
 
   <div id="error" class="error-banner" style="display:none;"></div>
 
-  <!-- GitHub connection -->
+  <!-- Auth (PAT or login depending on hub.json) -->
   <section class="section" id="sec-github">
     <div class="section-head">
-      <div class="section-title">GitHub connection</div>
+      <div class="section-title" id="auth-section-title">GitHub connection</div>
       <div class="section-status">
         <span class="status-dot" id="gh-dot"></span>
         <span id="gh-status">Not connected</span>
       </div>
     </div>
-    <div class="config-help">
-      The wizard writes <code>config.json</code>, <code>data.json</code> and <code>course.gpx</code> for the new race
-      directly to your hub repo via the GitHub Contents API.
-      Generate a <strong>fine-grained</strong> personal access token at
-      <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a>
-      with <strong>Repository access → Only this repo</strong> and <strong>Contents: Read and write</strong>.
-      The token lives in this device's localStorage and is shared across every race in the hub.
+
+    <!-- Login (proxy mode) -->
+    <div id="auth-login" style="display:none;">
+      <div class="config-help">
+        Sign in with the username and password your hub admin set up. The
+        worker on Cloudflare commits race files on your behalf — no GitHub
+        token needed on this device.
+      </div>
+      <div class="grid-2">
+        <label class="field">
+          <span class="lbl">Username</span>
+          <input type="text" id="login-username" autocomplete="username" spellcheck="false" />
+        </label>
+        <label class="field">
+          <span class="lbl">Password</span>
+          <input type="password" id="login-password" autocomplete="current-password" />
+        </label>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn primary" type="button" id="btn-login">Sign in</button>
+        <button class="btn" type="button" id="btn-logout" style="display:none;">Sign out</button>
+      </div>
     </div>
-    <div class="grid-2">
-      <label class="field">
-        <span class="lbl">Token</span>
-        <input type="password" id="cfg-token" placeholder="github_pat_..." autocomplete="off" spellcheck="false" />
-      </label>
-      <label class="field">
-        <span class="lbl">Branch</span>
-        <input type="text" id="cfg-branch" value="main" autocomplete="off" spellcheck="false" />
-      </label>
-      <label class="field">
-        <span class="lbl">Owner</span>
-        <input type="text" id="cfg-owner" autocomplete="off" spellcheck="false" />
-      </label>
-      <label class="field">
-        <span class="lbl">Repo</span>
-        <input type="text" id="cfg-repo" autocomplete="off" spellcheck="false" />
-      </label>
-    </div>
-    <div style="display:flex; gap:10px; flex-wrap:wrap;">
-      <button class="btn primary" type="button" id="btn-connect">Connect</button>
-      <button class="btn" type="button" id="btn-disconnect" style="display:none;">Disconnect</button>
+
+    <!-- PAT (direct mode) -->
+    <div id="auth-pat" style="display:none;">
+      <div class="config-help">
+        The wizard writes <code>config.json</code>, <code>data.json</code> and <code>course.gpx</code> for the new race
+        directly to your hub repo via the GitHub Contents API.
+        Generate a <strong>fine-grained</strong> personal access token at
+        <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a>
+        with <strong>Repository access → Only this repo</strong> and <strong>Contents: Read and write</strong>.
+        The token lives in this device's localStorage and is shared across every race in the hub.
+      </div>
+      <div class="grid-2">
+        <label class="field">
+          <span class="lbl">Token</span>
+          <input type="password" id="cfg-token" placeholder="github_pat_..." autocomplete="off" spellcheck="false" />
+        </label>
+        <label class="field">
+          <span class="lbl">Branch</span>
+          <input type="text" id="cfg-branch" value="main" autocomplete="off" spellcheck="false" />
+        </label>
+        <label class="field">
+          <span class="lbl">Owner</span>
+          <input type="text" id="cfg-owner" autocomplete="off" spellcheck="false" />
+        </label>
+        <label class="field">
+          <span class="lbl">Repo</span>
+          <input type="text" id="cfg-repo" autocomplete="off" spellcheck="false" />
+        </label>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn primary" type="button" id="btn-connect">Connect</button>
+        <button class="btn" type="button" id="btn-disconnect" style="display:none;">Disconnect</button>
+      </div>
     </div>
   </section>
 
@@ -359,34 +386,65 @@
     gpxText: null
   };
 
-  // ---------- GitHub config UI ----------
+  // ---------- auth UI ----------
+  function isProxyMode() { return Race.auth.mode() === 'proxy'; }
+
+  function applyAuthMode() {
+    const proxy = isProxyMode();
+    document.getElementById('auth-login').style.display = proxy ? '' : 'none';
+    document.getElementById('auth-pat').style.display = proxy ? 'none' : '';
+    document.getElementById('auth-section-title').textContent = proxy ? 'Sign in' : 'GitHub connection';
+  }
+
   function renderGhStatus() {
-    const cfg = Race.config.load();
     const dot = document.getElementById('gh-dot');
     const txt = document.getElementById('gh-status');
-    const disc = document.getElementById('btn-disconnect');
-    if (cfg && cfg.token && cfg.owner && cfg.repo) {
-      dot.className = 'status-dot connected';
-      const masked = cfg.token.length > 8 ? cfg.token.slice(0, 4) + '…' + cfg.token.slice(-4) : '••••';
-      txt.innerHTML = `Connected · ${cfg.owner}/${cfg.repo} @ ${cfg.branch} · ${masked}`;
-      disc.style.display = '';
+    if (isProxyMode()) {
+      const s = Race.auth.loadSession();
+      const logout = document.getElementById('btn-logout');
+      if (s && s.session && (!s.expiresAt || s.expiresAt > Date.now())) {
+        const expIn = s.expiresAt ? Math.max(0, Math.floor((s.expiresAt - Date.now()) / 60000)) : null;
+        dot.className = 'status-dot connected';
+        txt.innerHTML = `Signed in as ${s.username}${expIn != null ? ` · ${expIn}m left` : ''}`;
+        logout.style.display = '';
+      } else {
+        dot.className = 'status-dot';
+        txt.textContent = 'Not signed in';
+        logout.style.display = 'none';
+      }
     } else {
-      dot.className = 'status-dot';
-      txt.textContent = 'Not connected';
-      disc.style.display = 'none';
+      const cfg = Race.config.load();
+      const disc = document.getElementById('btn-disconnect');
+      if (cfg && cfg.token && cfg.owner && cfg.repo) {
+        dot.className = 'status-dot connected';
+        const masked = cfg.token.length > 8 ? cfg.token.slice(0, 4) + '…' + cfg.token.slice(-4) : '••••';
+        txt.innerHTML = `Connected · ${cfg.owner}/${cfg.repo} @ ${cfg.branch} · ${masked}`;
+        disc.style.display = '';
+      } else {
+        dot.className = 'status-dot';
+        txt.textContent = 'Not connected';
+        disc.style.display = 'none';
+      }
     }
   }
 
   function fillGhForm() {
-    const cfg = Race.config.load() || Race.config.detectDefaults();
-    document.getElementById('cfg-token').value = cfg.token || '';
-    document.getElementById('cfg-owner').value = cfg.owner || '';
-    document.getElementById('cfg-repo').value = cfg.repo || '';
-    document.getElementById('cfg-branch').value = cfg.branch || 'main';
+    if (isProxyMode()) {
+      const s = Race.auth.loadSession();
+      document.getElementById('login-username').value = s?.username || '';
+      document.getElementById('login-password').value = '';
+    } else {
+      const cfg = Race.config.load() || Race.config.detectDefaults();
+      document.getElementById('cfg-token').value = cfg.token || '';
+      document.getElementById('cfg-owner').value = cfg.owner || '';
+      document.getElementById('cfg-repo').value = cfg.repo || '';
+      document.getElementById('cfg-branch').value = cfg.branch || 'main';
+    }
   }
 
   async function onConnect() {
     const cfg = {
+      mode: 'direct',
       token: document.getElementById('cfg-token').value.trim(),
       owner: document.getElementById('cfg-owner').value.trim(),
       repo: document.getElementById('cfg-repo').value.trim(),
@@ -400,11 +458,10 @@
     const orig = btn.textContent;
     btn.textContent = 'Testing…'; btn.disabled = true;
     try {
-      // Try fetching the races index — it'll either exist or 404; both prove auth works.
-      const r = await Race.gh.getFile(cfg, 'races/index.json');
-      // 404 is fine (we'll create it). Anything else that didn't throw is fine too.
+      await Race.gh.getFile(cfg, 'races/index.json');
       const existing = Race.config.load();
-      Race.config.save({ ...(existing || {}), ...cfg });
+      const { mode, ...persisted } = cfg;
+      Race.config.save({ ...(existing || {}), ...persisted });
       btn.textContent = 'Connected ✓';
       renderGhStatus();
     } catch (err) {
@@ -418,6 +475,33 @@
   function onDisconnect() {
     if (!confirm('Disconnect and remove the stored token from this device?')) return;
     Race.config.clear();
+    fillGhForm();
+    renderGhStatus();
+  }
+
+  async function onLogin() {
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value;
+    if (!username || !password) { alert('Username and password required.'); return; }
+    const btn = document.getElementById('btn-login');
+    const orig = btn.textContent;
+    btn.textContent = 'Signing in…'; btn.disabled = true;
+    try {
+      await Race.auth.login(username, password);
+      document.getElementById('login-password').value = '';
+      btn.textContent = 'Signed in ✓';
+      renderGhStatus();
+    } catch (err) {
+      alert(`Could not sign in:\n${err.message}`);
+    } finally {
+      btn.disabled = false;
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    }
+  }
+
+  function onLogout() {
+    if (!confirm('Sign out on this device?')) return;
+    Race.auth.logout();
     fillGhForm();
     renderGhStatus();
   }
@@ -591,9 +675,9 @@
     clearProgress();
     document.getElementById('error').style.display = 'none';
 
-    const cfg = Race.config.load();
-    if (!cfg || !cfg.token) {
-      showError('Connect to GitHub first.');
+    const cfg = Race.auth.cfg();
+    if (!cfg) {
+      showError(isProxyMode() ? 'Sign in first.' : 'Connect to GitHub first.');
       return;
     }
 
@@ -666,6 +750,11 @@
   // ---------- wire-up ----------
   document.getElementById('btn-connect').addEventListener('click', onConnect);
   document.getElementById('btn-disconnect').addEventListener('click', onDisconnect);
+  document.getElementById('btn-login').addEventListener('click', onLogin);
+  document.getElementById('btn-logout').addEventListener('click', onLogout);
+  document.getElementById('login-password').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') onLogin();
+  });
   document.getElementById('btn-submit').addEventListener('click', onSubmit);
 
   document.getElementById('race-name').addEventListener('input', updateSlug);
@@ -730,12 +819,16 @@
   });
 
   // ---------- init ----------
-  fillGhForm();
-  renderGhStatus();
-  renderAidRows();
-  renderRunnerRows();
-  setCourseType(state.courseType);
-  updateSlug();
+  (async () => {
+    await Race.hub.load();
+    applyAuthMode();
+    fillGhForm();
+    renderGhStatus();
+    renderAidRows();
+    renderRunnerRows();
+    setCourseType(state.courseType);
+    updateSlug();
+  })();
 </script>
 
 </body>

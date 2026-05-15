@@ -54,6 +54,29 @@ This repo is a GitHub Template. To get your own hub:
    stored in your device's localStorage and is shared by every race in
    the hub. Revoke it when you're done with the race.
 
+## Auth modes
+
+The hub supports two ways to authenticate writes:
+
+- **Direct PAT** (default). Each device pastes its own fine-grained
+  GitHub token. Static, no backend. Fine for one or two operators who
+  are comfortable with PATs.
+- **Login proxy** (optional). A tiny Cloudflare Worker holds the PAT
+  on the server side; crew members sign in with a username + password
+  and the worker commits on their behalf. Crew never sees a token.
+  Reads still go straight to GitHub Pages, so viewing remains
+  anonymous.
+
+To enable the login proxy, deploy `worker/` to Cloudflare (see
+[`worker/README.md`](worker/README.md)) and set `auth.proxyUrl` in
+`hub.json` at the repo root to the worker's URL. With `proxyUrl` unset
+or `null`, the hub falls back to direct PAT mode — so the proxy can be
+down without bricking race day, as long as an operator has a PAT.
+
+Generate password hashes for the worker's `USERS` secret with
+[`admin/hash.html`](admin/hash.html) (opens in any browser, runs
+PBKDF2-SHA256 locally — passwords never leave the device).
+
 ## Layout
 
 ```
@@ -64,9 +87,16 @@ This repo is a GitHub Template. To get your own hub:
   pit.html                per-race pit board
   charts.html             per-race charts
   print-report.html       per-race printable
+  hub.json                optional hub-wide config (login proxy URL)
   lib/
-    race-core.js          shared helpers (compute, GitHub API, GPX, format)
+    race-core.js          shared helpers (compute, GitHub API, GPX, format, auth)
     race-theme.css        shared design tokens + base styles
+  admin/
+    hash.html             local PBKDF2 password hasher for the proxy USERS list
+  worker/
+    src/worker.js         Cloudflare Worker auth proxy (optional)
+    wrangler.toml         worker config
+    README.md             worker deploy instructions
   races/
     index.json            hub manifest — { races: [...] }
     <slug>/

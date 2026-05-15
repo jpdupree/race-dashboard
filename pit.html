@@ -235,6 +235,18 @@
     <span class="conn-text" id="conn-text">Not connected · button presses will fail until you connect.</span>
     <button class="btn" id="conn-toggle">Setup</button>
   </div>
+
+  <!-- Login form (proxy mode) -->
+  <div class="conn-form" id="login-form" hidden>
+    <div class="row"><label>Username</label><input type="text" id="login-username" autocomplete="username" spellcheck="false" /></div>
+    <div class="row"><label>Password</label><input type="password" id="login-password" autocomplete="current-password" /></div>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <button class="btn primary" id="login-submit">Sign in</button>
+      <button class="btn" id="login-logout">Sign out</button>
+    </div>
+  </div>
+
+  <!-- PAT form (direct mode) -->
   <div class="conn-form" id="conn-form" hidden>
     <div class="row"><label>Token</label><input type="password" id="cfg-token" placeholder="github_pat_..." autocomplete="off" /></div>
     <div class="row"><label>Owner</label><input type="text" id="cfg-owner" autocomplete="off" /></div>
@@ -307,26 +319,63 @@
   }
 
   // ---------- connection ----------
+  function isProxyMode() { return Race.auth.mode() === 'proxy'; }
+
   function renderConnStatus() {
-    const c = Race.config.load();
     const dot = document.getElementById('conn-dot');
     const txt = document.getElementById('conn-text');
-    if (c && c.token) {
-      const masked = c.token.length > 8 ? c.token.slice(0, 4) + '…' + c.token.slice(-4) : '••••';
-      dot.className = 'status-dot connected';
-      txt.innerHTML = `Connected · <strong>${c.owner}/${c.repo}</strong> @ <strong>${c.branch}</strong> · ${masked}`;
+    if (isProxyMode()) {
+      const s = Race.auth.loadSession();
+      if (s && s.session && (!s.expiresAt || s.expiresAt > Date.now())) {
+        const expIn = s.expiresAt ? Math.max(0, Math.floor((s.expiresAt - Date.now()) / 60000)) : null;
+        dot.className = 'status-dot connected';
+        txt.innerHTML = `Signed in as <strong>${s.username}</strong>${expIn != null ? ` · session ${expIn}m left` : ''}`;
+      } else {
+        dot.className = 'status-dot';
+        txt.textContent = 'Not signed in · button presses will fail until you sign in.';
+      }
     } else {
-      dot.className = 'status-dot';
-      txt.textContent = 'Not connected · button presses will fail until you connect.';
+      const c = Race.config.load();
+      if (c && c.token) {
+        const masked = c.token.length > 8 ? c.token.slice(0, 4) + '…' + c.token.slice(-4) : '••••';
+        dot.className = 'status-dot connected';
+        txt.innerHTML = `Connected · <strong>${c.owner}/${c.repo}</strong> @ <strong>${c.branch}</strong> · ${masked}`;
+      } else {
+        dot.className = 'status-dot';
+        txt.textContent = 'Not connected · button presses will fail until you connect.';
+      }
     }
   }
 
   function fillConnForm() {
-    const c = Race.config.load() || Race.config.detectDefaults();
-    document.getElementById('cfg-token').value = c.token || '';
-    document.getElementById('cfg-owner').value = c.owner || '';
-    document.getElementById('cfg-repo').value  = c.repo || '';
-    document.getElementById('cfg-branch').value = c.branch || 'main';
+    if (isProxyMode()) {
+      const s = Race.auth.loadSession();
+      document.getElementById('login-username').value = s?.username || '';
+      document.getElementById('login-password').value = '';
+    } else {
+      const c = Race.config.load() || Race.config.detectDefaults();
+      document.getElementById('cfg-token').value = c.token || '';
+      document.getElementById('cfg-owner').value = c.owner || '';
+      document.getElementById('cfg-repo').value  = c.repo || '';
+      document.getElementById('cfg-branch').value = c.branch || 'main';
+    }
+  }
+
+  function showConnForm() {
+    const proxy = isProxyMode();
+    document.getElementById('login-form').hidden = !proxy;
+    document.getElementById('conn-form').hidden = proxy;
+    fillConnForm();
+  }
+
+  function hideConnForm() {
+    document.getElementById('login-form').hidden = true;
+    document.getElementById('conn-form').hidden = true;
+  }
+
+  function isConnFormOpen() {
+    return !document.getElementById('login-form').hidden ||
+           !document.getElementById('conn-form').hidden;
   }
 
   async function saveConfigFromForm() {
@@ -341,10 +390,10 @@
     const orig = btn.textContent;
     btn.textContent = 'Testing…'; btn.disabled = true;
     try {
-      await Race.gh.getFile(c, CONFIG_PATH);
+      await Race.gh.getFile({ mode: 'direct', ...c }, CONFIG_PATH);
       Race.config.save({ ...(Race.config.load() || {}), ...c });
       btn.textContent = 'Connected ✓';
-      document.getElementById('conn-form').hidden = true;
+      hideConnForm();
       renderConnStatus();
       await load();
     } catch (err) {
@@ -355,15 +404,42 @@
     }
   }
 
+  async function doLogin() {
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value;
+    if (!username || !password) { alert('Username and password required.'); return; }
+    const btn = document.getElementById('login-submit');
+    const orig = btn.textContent;
+    btn.textContent = 'Signing in…'; btn.disabled = true;
+    try {
+      await Race.auth.login(username, password);
+      btn.textContent = 'Signed in ✓';
+      document.getElementById('login-password').value = '';
+      hideConnForm();
+      renderConnStatus();
+      await load();
+    } catch (err) {
+      alert(`Could not sign in:\n${err.message}`);
+    } finally {
+      btn.disabled = false;
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    }
+  }
+
   function disconnectConfig() {
-    if (!confirm('Disconnect and remove the stored token from this device?')) return;
-    Race.config.clear();
+    if (isProxyMode()) {
+      if (!confirm('Sign out on this device?')) return;
+      Race.auth.logout();
+    } else {
+      if (!confirm('Disconnect and remove the stored token from this device?')) return;
+      Race.config.clear();
+    }
     renderConnStatus();
   }
 
   // ---------- press button (sign in/out) ----------
   async function press(runnerId) {
-    if (!Race.config.has()) { toast('Connect to GitHub first.', 'error'); openConnForm(); return; }
+    if (!Race.auth.has()) { toast(isProxyMode() ? 'Sign in first.' : 'Connect to GitHub first.', 'error'); openConnForm(); return; }
     const runner = (data.runners || []).find(r => r.id === runnerId);
     if (!runner) { toast(`Runner "${runnerId}" not in data.json`, 'error'); return; }
     const next = Race.compute.nextActionFor(runner, cfg);
@@ -381,7 +457,7 @@
 
     // Commit
     try {
-      await Race.gh.mutateJson(Race.config.load(), DATA_PATH, (remote) => {
+      await Race.gh.mutateJson(Race.auth.cfg(), DATA_PATH, (remote) => {
         const r = (remote.runners || []).find(x => x.id === runnerId);
         if (!r) throw new Error(`Runner "${runnerId}" not in remote data.json`);
         r.legs = r.legs || [];
@@ -418,7 +494,7 @@
     next.setHours(+m[1], +m[2], +(m[3] || 0), 0);
     const iso = next.toISOString();
     try {
-      await Race.gh.mutateJson(Race.config.load(), DATA_PATH, (remote) => {
+      await Race.gh.mutateJson(Race.auth.cfg(), DATA_PATH, (remote) => {
         const r = (remote.runners || []).find(x => x.id === runnerId);
         const lg = r && (r.legs || []).find(l => l.index === legIndex);
         if (!lg) throw new Error('Leg not found');
@@ -446,7 +522,7 @@
     else return;
 
     try {
-      await Race.gh.mutateJson(Race.config.load(), DATA_PATH, (remote) => {
+      await Race.gh.mutateJson(Race.auth.cfg(), DATA_PATH, (remote) => {
         const r = (remote.runners || []).find(x => x.id === runnerId);
         const idx = (r.legs || []).findIndex(l => l.index === last.index);
         if (idx < 0) return remote;
@@ -476,7 +552,7 @@
     const gear   = get('gearChanges');
 
     try {
-      await Race.gh.mutateJson(Race.config.load(), DATA_PATH, (remote) => {
+      await Race.gh.mutateJson(Race.auth.cfg(), DATA_PATH, (remote) => {
         const r = (remote.runners || []).find(x => x.id === runnerId);
         if (!r) throw new Error('Runner missing');
         const leg = (r.legs || []).find(l => l.index === legIndex);
@@ -709,14 +785,14 @@
 
     const newSegments = Race.course.segmentsFromAidStations(aids, cfg.course?.segments || []);
     try {
-      await Race.gh.mutateJson(Race.config.load(), CONFIG_PATH, (remote) => {
+      await Race.gh.mutateJson(Race.auth.cfg(), CONFIG_PATH, (remote) => {
         remote.course = remote.course || {};
         remote.course.segments = newSegments;
         return remote;
       }, `pit: update aid stations for ${slug}`);
 
       // Also update races/index.json's totalDistanceMi for accuracy
-      await Race.gh.mutateJson(Race.config.load(), 'races/index.json', (m) => {
+      await Race.gh.mutateJson(Race.auth.cfg(), 'races/index.json', (m) => {
         const e = (m.races || []).find(r => r.slug === slug);
         if (e) {
           e.totalDistanceMi = +newSegments.reduce((a, s) => a + (s.distanceMi || 0), 0).toFixed(2);
@@ -773,13 +849,17 @@
   }
 
   // ---------- wire-up ----------
-  function openConnForm() { fillConnForm(); document.getElementById('conn-form').hidden = false; }
+  function openConnForm() { showConnForm(); }
   document.getElementById('conn-toggle').addEventListener('click', () => {
-    const f = document.getElementById('conn-form');
-    if (f.hidden) openConnForm(); else f.hidden = true;
+    if (isConnFormOpen()) hideConnForm(); else openConnForm();
   });
   document.getElementById('cfg-save').addEventListener('click', saveConfigFromForm);
   document.getElementById('cfg-disconnect').addEventListener('click', disconnectConfig);
+  document.getElementById('login-submit').addEventListener('click', doLogin);
+  document.getElementById('login-logout').addEventListener('click', disconnectConfig);
+  document.getElementById('login-password').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') doLogin();
+  });
 
   document.body.addEventListener('click', (e) => {
     const t = e.target.closest('[data-action]');
@@ -821,12 +901,19 @@
   });
   document.getElementById('aid-save').addEventListener('click', saveAidStations);
 
-  if (!Race.config.has()) openConnForm();
-  renderConnStatus();
-  load();
-  setInterval(load, 15000);
-  setInterval(tick, 1000);
-  setInterval(updateLastUpdatedLabel, 1000);
+  // Load hub.json first so we know whether to render proxy or PAT auth UI.
+  (async () => {
+    await Race.hub.load();
+    if (isProxyMode()) {
+      document.getElementById('conn-toggle').textContent = 'Sign in';
+    }
+    if (!Race.auth.has()) openConnForm();
+    renderConnStatus();
+    await load();
+    setInterval(load, 15000);
+    setInterval(tick, 1000);
+    setInterval(updateLastUpdatedLabel, 1000);
+  })();
 </script>
 
 </body>

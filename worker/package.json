@@ -1,0 +1,14 @@
+{
+  "name": "race-dashboard-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloudflare Worker that gates writes to the race-dashboard hub with username/password sessions.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}

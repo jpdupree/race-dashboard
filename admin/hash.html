@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Password hasher · race-dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../lib/race-theme.css">
+<style>
+  .wrap { max-width: 720px; margin: 0 auto; }
+  .panel {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px; padding: 24px 28px; margin-bottom: 18px;
+  }
+  .panel h2 {
+    font-family: 'Fraunces', serif; font-size: 20px; font-weight: 600;
+    margin-bottom: 14px;
+  }
+  pre.out {
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: 4px; padding: 14px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    color: var(--green); white-space: pre-wrap; word-break: break-word;
+    min-height: 60px;
+  }
+  .users {
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: 4px; padding: 14px; margin-top: 12px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    color: var(--text-dim); white-space: pre-wrap; word-break: break-word;
+    min-height: 60px;
+  }
+  .row-btns { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .info {
+    background: rgba(94, 200, 255, 0.06);
+    border-left: 2px solid var(--blue);
+    padding: 12px; border-radius: 4px;
+    font-size: 12px; color: var(--text-dim); line-height: 1.55;
+    margin-bottom: 14px;
+  }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="brand">
+    <div class="brand-meta">
+      <span>Admin</span><span>·</span>
+      <a href="../index.html" style="color: inherit; text-decoration: none;">← Hub</a>
+    </div>
+    <h1 class="site" style="font-size: 28px;">Password <em>Hasher</em></h1>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="info">
+    Generate PBKDF2-SHA256 hashes for the worker's <code>USERS</code> secret.
+    Everything runs in your browser — the password never leaves this page.
+    Add each user one at a time, then copy the combined JSON at the bottom
+    and run <code>npx wrangler secret put USERS</code> in the <code>worker/</code> directory.
+  </div>
+
+  <section class="panel">
+    <h2>Hash a password</h2>
+
+    <label class="field">
+      <span class="lbl">Username</span>
+      <input type="text" id="username" placeholder="e.g. jason" autocomplete="off" spellcheck="false" />
+    </label>
+
+    <label class="field">
+      <span class="lbl">Password</span>
+      <input type="password" id="password" autocomplete="new-password" spellcheck="false" />
+      <span class="hint">At least 12 characters recommended.</span>
+    </label>
+
+    <label class="field">
+      <span class="lbl">Role</span>
+      <select id="role">
+        <option value="crew">crew</option>
+        <option value="admin">admin</option>
+        <option value="viewer">viewer</option>
+      </select>
+      <span class="hint">v1 ignores roles (any authed user can write). Reserved for future fine-grained gates.</span>
+    </label>
+
+    <label class="field">
+      <span class="lbl">PBKDF2 iterations</span>
+      <input type="number" id="iterations" value="100000" min="10000" step="10000" />
+      <span class="hint">Higher = slower login but stronger. 100k is a sensible default for a worker.</span>
+    </label>
+
+    <div class="row-btns">
+      <button class="btn primary" id="hash-btn">Hash</button>
+      <button class="btn" id="add-btn" disabled>Add to user list</button>
+      <button class="btn" id="clear-list-btn">Clear user list</button>
+    </div>
+
+    <pre class="out" id="out">(no hash yet)</pre>
+  </section>
+
+  <section class="panel">
+    <h2>User list (paste this into wrangler)</h2>
+    <pre class="users" id="users">[]</pre>
+    <div class="row-btns">
+      <button class="btn primary" id="copy-btn">Copy</button>
+      <button class="btn" id="cmd-btn">Show wrangler command</button>
+    </div>
+    <pre class="out" id="cmd" style="display:none;"></pre>
+  </section>
+
+</div>
+
+<script>
+  let lastHash = null;
+  let users = [];
+
+  function b64(bytes) {
+    let s = '';
+    for (const b of bytes) s += String.fromCharCode(b);
+    return btoa(s);
+  }
+
+  async function deriveHash(password, salt, iterations) {
+    const enc = new TextEncoder();
+    const km = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits(
+      { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+      km, 256
+    );
+    return new Uint8Array(bits);
+  }
+
+  async function doHash() {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const role = document.getElementById('role').value;
+    const iterations = parseInt(document.getElementById('iterations').value, 10) || 100000;
+    if (!username || !password) {
+      document.getElementById('out').textContent = 'Need a username and password.';
+      return;
+    }
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const btn = document.getElementById('hash-btn');
+    const orig = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Hashing…';
+    try {
+      const hash = await deriveHash(password, salt, iterations);
+      lastHash = { username, hash: b64(hash), salt: b64(salt), iterations };
+      if (role !== 'crew') lastHash.role = role;
+      document.getElementById('out').textContent = JSON.stringify(lastHash, null, 2);
+      document.getElementById('add-btn').disabled = false;
+    } catch (err) {
+      document.getElementById('out').textContent = 'Error: ' + err.message;
+    } finally {
+      btn.disabled = false; btn.textContent = orig;
+    }
+  }
+
+  function addToList() {
+    if (!lastHash) return;
+    users = users.filter(u => u.username !== lastHash.username);
+    users.push(lastHash);
+    renderUsers();
+    document.getElementById('password').value = '';
+    document.getElementById('username').value = '';
+    document.getElementById('out').textContent = `Added "${lastHash.username}". Continue with the next user, or copy the list below.`;
+    lastHash = null;
+    document.getElementById('add-btn').disabled = true;
+  }
+
+  function clearList() {
+    if (!users.length) return;
+    if (!confirm('Clear the entire user list?')) return;
+    users = [];
+    renderUsers();
+  }
+
+  function renderUsers() {
+    document.getElementById('users').textContent = JSON.stringify(users, null, 2);
+    document.getElementById('cmd').style.display = 'none';
+  }
+
+  async function copyList() {
+    const text = JSON.stringify(users);
+    try {
+      await navigator.clipboard.writeText(text);
+      const btn = document.getElementById('copy-btn');
+      const orig = btn.textContent;
+      btn.textContent = 'Copied ✓';
+      setTimeout(() => { btn.textContent = orig; }, 1200);
+    } catch (e) {
+      alert('Could not copy automatically. Select the JSON above and copy by hand.');
+    }
+  }
+
+  function showCmd() {
+    const escaped = JSON.stringify(users).replace(/'/g, "'\\''");
+    const cmd = `echo '${escaped}' | npx wrangler secret put USERS`;
+    const out = document.getElementById('cmd');
+    out.textContent = cmd;
+    out.style.display = '';
+  }
+
+  document.getElementById('hash-btn').addEventListener('click', doHash);
+  document.getElementById('add-btn').addEventListener('click', addToList);
+  document.getElementById('clear-list-btn').addEventListener('click', clearList);
+  document.getElementById('copy-btn').addEventListener('click', copyList);
+  document.getElementById('cmd-btn').addEventListener('click', showCmd);
+</script>
+
+</body>
+</html>
