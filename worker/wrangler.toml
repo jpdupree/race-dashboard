@@ -13,11 +13,12 @@ GITHUB_BRANCH = "main"
 # Leave empty if the worker is at the root of its hostname.
 MOUNT_PATH = ""
 # Comma-separated origins allowed by CORS. "*" allows any caller.
-ALLOWED_ORIGINS = "*"
+# A CORS origin is scheme + host only — never a path.
+ALLOWED_ORIGINS = "https://jpdupree.github.io"
 # Public URL of the hub frontend, used when building invite & share URLs.
-# Example: "https://jpdupree.github.io/race-dashboard". If empty, the worker
+# Includes the repo path so links resolve correctly. If empty, the worker
 # falls back to the request's Origin header.
-PUBLIC_BASE_URL = ""
+PUBLIC_BASE_URL = "https://jpdupree.github.io/race-dashboard"
 
 # Secrets to set with `wrangler secret put`:
 #   GITHUB_TOKEN   PAT with Contents: Read and write
