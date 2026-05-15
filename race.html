@@ -383,6 +383,18 @@
   .aid-marker-label {
     font-family: 'JetBrains Mono', monospace; font-size: 11px;
   }
+  .course-elev {
+    width: 100%; height: auto; display: block; margin-top: 10px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .course-elev .elev-area { fill: rgba(255, 107, 61, 0.16); stroke: none; }
+  .course-elev .elev-line { fill: none; stroke: #ff6b3d; stroke-width: 1.6; }
+  .course-elev .elev-aid-line { stroke-dasharray: 3 3; }
+  .course-elev .elev-aid-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    fill: var(--text-muted);
+  }
 </style>
 </head>
 <body>
@@ -402,7 +414,7 @@
       <span class="label">Race Time Elapsed</span>
       <span class="time" id="elapsed">--:--:--</span>
     </div>
-    <a class="nav-link" id="lk-pit" href="#">Pit →</a>
+    <a class="nav-link" id="lk-pit" href="#" style="display:none;">Pit →</a>
     <a class="nav-link" id="lk-charts" href="#">Charts →</a>
     <a class="nav-link" id="lk-print" href="#">Print →</a>
   </div>
@@ -426,6 +438,7 @@
     <span class="course-map-meta" id="course-map-meta"></span>
   </div>
   <div id="course-map"></div>
+  <svg id="course-elev" class="course-elev" viewBox="0 0 1000 200"></svg>
 </section>
 
 <footer class="site">
@@ -785,6 +798,22 @@
     });
   }
 
+  // Read a race file: GitHub Pages first (fast, anonymous), then fall back to
+  // the worker / PAT, which reads the GitHub API directly. The fallback covers
+  // the window right after creation when Pages hasn't republished yet.
+  async function fetchRaceJson(file) {
+    try {
+      const res = await fetch(`races/${encodeURIComponent(slug)}/${file}?_=${Date.now()}`, { cache: 'no-store' });
+      if (res.ok) return await res.json();
+    } catch (e) { /* network issue — fall through to the worker/PAT */ }
+    const acfg = Race.auth.cfg();
+    if (acfg) {
+      const r = await Race.gh.getJson(acfg, `races/${slug}/${file}`);
+      if (!r.missing) return r.data;
+    }
+    throw new Error(`${file} not found for race "${slug}"`);
+  }
+
   async function load() {
     try {
       // Stash any ?t=<share-token> for use by the worker reads (currently
@@ -792,13 +821,8 @@
       // when we move to private-backend storage this becomes mandatory).
       Race.share.captureFromUrl();
 
-      const cfgRes = await fetch(`races/${encodeURIComponent(slug)}/config.json?_=${Date.now()}`, { cache: 'no-store' });
-      if (!cfgRes.ok) throw new Error(`config.json not found for race "${slug}"`);
-      cfg = await cfgRes.json();
-
-      const dataRes = await fetch(`races/${encodeURIComponent(slug)}/data.json?_=${Date.now()}`, { cache: 'no-store' });
-      if (!dataRes.ok) throw new Error(`data.json not found for race "${slug}"`);
-      data = await dataRes.json();
+      cfg = await fetchRaceJson('config.json');
+      data = await fetchRaceJson('data.json');
       lastFetchAt = new Date();
 
       document.title = `${cfg.name} · Live`;
@@ -826,9 +850,10 @@
       document.getElementById('error').style.display = 'none';
       renderShareBanner();
       maybeShowAccessPanel();
+      document.getElementById('lk-pit').style.display = canEdit() ? '' : 'none';
       updateLastUpdated();
       tick();
-      initCourseMap();
+      initCourseVisuals();
     } catch (err) {
       const e = document.getElementById('error');
       e.style.display = 'block';
@@ -836,12 +861,26 @@
     }
   }
 
-  // ---------- course map (Leaflet + OpenStreetMap) ----------
-  // Plots the course.gpx track with aid-station markers. Initialised once;
-  // the periodic refresh skips it after the first successful build.
-  let courseMap = null;
-  async function initCourseMap() {
-    if (courseMap || typeof L === 'undefined') return;
+  // ---------- course visuals (Leaflet map + elevation profile) ----------
+  // Both are built from course.gpx. Built once; the periodic refresh skips
+  // re-init after the first success. A missing GPX (or Pages lag right after
+  // creation) just means a retry on the next refresh.
+  const AID_END_COLOR = '#6ee7a8';
+  const AID_MID_COLOR = '#ff6b3d';
+  let courseVisualsDone = false;
+
+  // The GPX point nearest a given cumulative mileage.
+  function nearestGpxPoint(pts, mi) {
+    let best = pts[0], bestDiff = Infinity;
+    for (const p of pts) {
+      const diff = Math.abs((p.dist || 0) - mi);
+      if (diff < bestDiff) { bestDiff = diff; best = p; }
+    }
+    return best;
+  }
+
+  async function initCourseVisuals() {
+    if (courseVisualsDone) return;
 
     let gpxText;
     try {
@@ -854,41 +893,87 @@
     try { pts = Race.gpx.parse(gpxText); } catch (e) { return; }
     if (!pts.length) return;
 
+    courseVisualsDone = true;
     document.getElementById('course-map-section').style.display = '';
-
-    courseMap = L.map('course-map', { scrollWheelZoom: false, attributionControl: true });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd', maxZoom: 19
-    }).addTo(courseMap);
-
-    const latlngs = pts.map(p => [p.lat, p.lon]);
-    const line = L.polyline(latlngs, { color: '#ff6b3d', weight: 3, opacity: 0.9 }).addTo(courseMap);
-    courseMap.fitBounds(line.getBounds(), { padding: [24, 24] });
-
-    // Aid-station markers, placed at the GPX point nearest each aid's mileage.
     const aids = Race.course.aidStations(cfg);
-    aids.forEach((aid, i) => {
-      let best = pts[0], bestDiff = Infinity;
-      for (const p of pts) {
-        const diff = Math.abs((p.dist || 0) - aid.mileage);
-        if (diff < bestDiff) { bestDiff = diff; best = p; }
-      }
-      const isEnd = i === 0 || i === aids.length - 1;
-      L.circleMarker([best.lat, best.lon], {
-        radius: isEnd ? 6 : 5,
-        color: '#fff', weight: 2,
-        fillColor: isEnd ? '#6ee7a8' : '#ff6b3d', fillOpacity: 1
-      }).addTo(courseMap).bindTooltip(
-        `${aid.name} · ${aid.mileage.toFixed(1)} mi`,
-        { className: 'aid-marker-label', direction: 'top' }
-      );
-    });
 
     const dist = Race.gpx.totalDistanceMi(pts);
     const elev = Race.gpx.totalElevation(pts);
     document.getElementById('course-map-meta').textContent =
       `${dist.toFixed(1)} mi · +${elev.gainFt.toLocaleString()} / -${elev.lossFt.toLocaleString()} ft`;
+
+    // Elevation profile — pure SVG, so it renders even if Leaflet didn't load.
+    try { renderElevationProfile(pts, aids); } catch (e) {}
+
+    // Leaflet map — skipped gracefully if the library is unavailable.
+    if (typeof L === 'undefined') {
+      document.getElementById('course-map').style.display = 'none';
+      return;
+    }
+    const courseMap = L.map('course-map', { scrollWheelZoom: false });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd', maxZoom: 19
+    }).addTo(courseMap);
+
+    const line = L.polyline(pts.map(p => [p.lat, p.lon]), { color: AID_MID_COLOR, weight: 3, opacity: 0.9 }).addTo(courseMap);
+    courseMap.fitBounds(line.getBounds(), { padding: [24, 24] });
+
+    aids.forEach((aid, i) => {
+      const p = nearestGpxPoint(pts, aid.mileage);
+      const isEnd = i === 0 || i === aids.length - 1;
+      L.circleMarker([p.lat, p.lon], {
+        radius: isEnd ? 6 : 5, color: '#fff', weight: 2,
+        fillColor: isEnd ? AID_END_COLOR : AID_MID_COLOR, fillOpacity: 1
+      }).addTo(courseMap).bindTooltip(
+        `${aid.name} · ${aid.mileage.toFixed(1)} mi`,
+        { className: 'aid-marker-label', direction: 'top' }
+      );
+    });
+  }
+
+  // Elevation vs. distance SVG, with the same aid-station markers as the map.
+  function renderElevationProfile(pts, aids) {
+    const svg = document.getElementById('course-elev');
+    const W = 1000, H = 200, padL = 8, padR = 8, padT = 30, padB = 14;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const totalMi = pts[pts.length - 1].dist || 1;
+    let minE = Infinity, maxE = -Infinity;
+    for (const p of pts) {
+      if (p.ele < minE) minE = p.ele;
+      if (p.ele > maxE) maxE = p.ele;
+    }
+    if (maxE - minE < 1) maxE = minE + 1;
+    const x = mi => padL + (Math.min(mi, totalMi) / totalMi) * plotW;
+    const y = ele => padT + (1 - (ele - minE) / (maxE - minE)) * plotH;
+    const baseY = padT + plotH;
+
+    const linePts = pts.map(p => `${x(p.dist).toFixed(1)},${y(p.ele).toFixed(1)}`);
+    const linePath = 'M' + linePts.join(' L');
+    const areaPath = `M${x(0).toFixed(1)},${baseY.toFixed(1)} L${linePts.join(' L')} L${x(totalMi).toFixed(1)},${baseY.toFixed(1)} Z`;
+
+    const marks = aids.map((aid, i) => {
+      const ax = x(aid.mileage);
+      const pt = nearestGpxPoint(pts, aid.mileage);
+      const ay = y(pt.ele);
+      const isEnd = i === 0 || i === aids.length - 1;
+      const color = isEnd ? AID_END_COLOR : AID_MID_COLOR;
+      const ft = Math.round(Race.gpx.metersToFeet(pt.ele));
+      // Stagger labels on two rows to reduce overlap on aid-dense courses.
+      const labelY = (i % 2 === 0) ? 12 : 24;
+      return `
+        <line class="elev-aid-line" x1="${ax.toFixed(1)}" y1="${padT}" x2="${ax.toFixed(1)}" y2="${baseY.toFixed(1)}"
+              stroke="${color}" stroke-opacity="0.3" />
+        <circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="4" fill="${color}" stroke="#0c0d10" stroke-width="1.5">
+          <title>${escapeHtml(aid.name)} · ${aid.mileage.toFixed(1)} mi · ${ft.toLocaleString()} ft</title>
+        </circle>
+        <text class="elev-aid-label" x="${ax.toFixed(1)}" y="${labelY}" text-anchor="middle">${escapeHtml(aid.name)}</text>`;
+    }).join('');
+
+    svg.innerHTML = `
+      <path class="elev-area" d="${areaPath}" />
+      <path class="elev-line" d="${linePath}" />
+      ${marks}`;
   }
 
   // ---------- share banner (anonymous shared view) ----------
@@ -915,6 +1000,12 @@
     if (!me) return false;
     if ((cfg.createdBy || '').toLowerCase() === me) return true;
     return (cfg.editors || []).some(e => (e || '').toLowerCase() === me);
+  }
+
+  // Edit access — gates the Pit link. In proxy mode it's the per-race ACL;
+  // in direct/PAT mode it's whether this device has a token stored.
+  function canEdit() {
+    return isProxyMode() ? canManage() : Race.config.has();
   }
 
   let accessLoaded = false;
