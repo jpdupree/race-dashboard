@@ -768,14 +768,18 @@ async function handleShareRevoke(req, env) {
   catch (e) { return json({ error: 'Invalid JSON' }, { status: 400 }, env, req); }
   const { token } = body || {};
   if (!token) return json({ error: 'token required' }, { status: 400 }, env, req);
-  const raw = await env.AUTH_KV.get('share:' + token);
-  if (!raw) return json({ ok: true }, {}, env, req);
-  let sh;
-  try { sh = JSON.parse(raw); }
-  catch (e) { return json({ error: 'Corrupt share token' }, { status: 500 }, env, req); }
-  try { await requireRaceAdmin(env, sh.slug, session.email); }
+  // The token may be a share-link token (share:) or a pending-invite token
+  // (invite:) — this endpoint revokes either.
+  let kvKey = 'share:' + token;
+  let raw = await env.AUTH_KV.get(kvKey);
+  if (!raw) { kvKey = 'invite:' + token; raw = await env.AUTH_KV.get(kvKey); }
+  if (!raw) return json({ ok: true }, {}, env, req); // already gone
+  let rec;
+  try { rec = JSON.parse(raw); }
+  catch (e) { return json({ error: 'Corrupt token' }, { status: 500 }, env, req); }
+  try { await requireRaceAdmin(env, rec.slug, session.email); }
   catch (err) { return json({ error: err.message }, { status: err.status || 500 }, env, req); }
-  await env.AUTH_KV.delete('share:' + token);
+  await env.AUTH_KV.delete(kvKey);
   return json({ ok: true }, {}, env, req);
 }
 
