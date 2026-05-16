@@ -561,13 +561,25 @@
       if (isCurrent) cls = 'current';
       const cutoffText = s.arriveCutoffHours != null
         ? Race.fmt.hoursToHm(s.arriveCutoffHours) : '—';
-      // Pit time after this segment (gap to next leg's startTime, if any)
+      // Pit time after this segment: a finished gap, or the live pit if the
+      // runner is in the pit after this leg right now.
       const nextEntry = (runner.legs || []).find(l => l.index === s.index + 1);
-      const pitSec = entry && entry.endTime && nextEntry && nextEntry.startTime
+      const pitDone = entry && entry.endTime && nextEntry && nextEntry.startTime
         ? (new Date(nextEntry.startTime) - new Date(entry.endTime)) / 1000 : null;
-      const durText = isDone ? Race.fmt.durationShort(dur)
-        : isCurrent ? Race.fmt.durationShort(c.currentLegSeconds)
-        : '—';
+      const pitLive = entry && entry.endTime && c.inPit && c.liveLegIndex === s.index;
+
+      // Current-leg duration ticks every second via the .live-timer class.
+      const durCell = isCurrent
+        ? `<span class="col-dur live-timer" data-base="0" data-since="${entry.startTime}" data-fmt="short">${Race.fmt.durationShort(c.currentLegSeconds)}</span>`
+        : `<span class="col-dur">${isDone ? Race.fmt.durationShort(dur) : '—'}</span>`;
+
+      let pitCell = '<span class="col-pit"></span>';
+      if (pitLive) {
+        pitCell = `<span class="col-pit"><span class="live-timer" data-base="0" data-since="${entry.endTime}" data-fmt="short">${Race.fmt.durationShort(c.currentPitSeconds)}</span> pit</span>`;
+      } else if (pitDone != null) {
+        pitCell = `<span class="col-pit">${Race.fmt.durationShort(pitDone)} pit</span>`;
+      }
+
       return `
         <div class="seg-row ${cls}">
           <span class="num">${s.index}</span>
@@ -575,9 +587,9 @@
             ${escapeHtml(s.name)}
             <div class="meta">${s.distanceMi.toFixed(1)} mi · ${s.cumulativeMi.toFixed(1)} mi total${s.elevationGainFt != null ? ` · +${s.elevationGainFt}/${-Math.abs(s.elevationLossFt || 0)} ft` : ''}</div>
           </span>
-          <span class="col-dur">${durText}</span>
+          ${durCell}
           <span class="col-cut">${cutoffText}</span>
-          <span class="col-pit">${pitSec != null ? Race.fmt.durationShort(pitSec) + ' pit' : ''}</span>
+          ${pitCell}
         </div>`;
     }).join('');
   }
@@ -808,8 +820,12 @@
       if (!since) return;
       const base = parseFloat(t.dataset.base) || 0;
       const seconds = base + Math.max(0, (Date.now() - new Date(since).getTime()) / 1000);
-      t.textContent = Race.fmt.duration(seconds);
+      t.textContent = t.dataset.fmt === 'short'
+        ? Race.fmt.durationShort(seconds)
+        : Race.fmt.duration(seconds);
     });
+    // Advance the predicted runner positions every second too.
+    updateTracking();
   }
 
   // Read a race file: GitHub Pages first (fast, anonymous), then fall back to
@@ -883,7 +899,8 @@
   const AID_END_COLOR = '#6ee7a8';
   const AID_MID_COLOR = '#ff6b3d';
   let courseVisualsReady = false;
-  let courseMap = null, courseGpxPts = null, mapRunnerLayer = null;
+  let courseMap = null, courseGpxPts = null;
+  let mapRunnerMarkers = {};               // runnerId -> Leaflet marker
   let elevX = null, elevY = null;          // elevation-SVG scale fns
   let mergedRunners = [];                  // set by load()
 
@@ -947,7 +964,6 @@
         );
       });
 
-      mapRunnerLayer = L.layerGroup().addTo(courseMap);
     } else {
       document.getElementById('course-map').style.display = 'none';
     }
@@ -1025,20 +1041,37 @@
     const trackMi = courseMi =>
       (loopMode && loopDist > 0) ? (courseMi % loopDist) : courseMi;
 
-    if (courseMap && mapRunnerLayer) {
-      mapRunnerLayer.clearLayers();
+    // Map — markers are moved in place (not cleared/re-added) so the
+    // per-second updates don't flicker.
+    if (courseMap) {
+      const live = new Set();
       mergedRunners.forEach(r => {
         const pos = predictedPosition(r);
         if (!pos) return;
+        live.add(r.id);
         const p = nearestGpxPoint(courseGpxPts, trackMi(pos.courseMi));
         const color = r.color || AID_MID_COLOR;
-        L.circleMarker([p.lat, p.lon], {
-          radius: 7, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1,
-          className: 'runner-dot'
-        }).addTo(mapRunnerLayer).bindTooltip(
-          `${r.name} · ${trackingLabel(pos)}`,
-          { permanent: true, direction: 'right', offset: [8, 0], className: 'runner-dot-label' }
-        );
+        const label = `${r.name} · ${trackingLabel(pos)}`;
+        let m = mapRunnerMarkers[r.id];
+        if (m) {
+          m.setLatLng([p.lat, p.lon]);
+          m.setStyle({ fillColor: color });
+          m.setTooltipContent(label);
+        } else {
+          m = L.circleMarker([p.lat, p.lon], {
+            radius: 7, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1,
+            className: 'runner-dot'
+          }).addTo(courseMap).bindTooltip(label, {
+            permanent: true, direction: 'right', offset: [8, 0], className: 'runner-dot-label'
+          });
+          mapRunnerMarkers[r.id] = m;
+        }
+      });
+      Object.keys(mapRunnerMarkers).forEach(id => {
+        if (!live.has(id)) {
+          courseMap.removeLayer(mapRunnerMarkers[id]);
+          delete mapRunnerMarkers[id];
+        }
       });
     }
 
