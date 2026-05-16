@@ -228,7 +228,17 @@
       return { ...meta, ...d };
     });
     const t = cfg.targets || {};
-    const start = new Date(cfg.startTime);
+    // Cumulative-progress timeline origin: the race start, or the earliest
+    // logged leg if any activity predates it (e.g. test data, or a runner
+    // who set off before the official gun). Keeps the x-axis from going
+    // negative.
+    let originMs = new Date(cfg.startTime).getTime();
+    for (const r of runners) {
+      for (const l of (r.legs || [])) {
+        if (l.startTime) originMs = Math.min(originMs, new Date(l.startTime).getTime());
+      }
+    }
+    const start = new Date(originMs);
     const cutoffHours = cfg.cutoffs?.totalHours || 0;
     const totalDist = Race.course.totalDistanceMi(cfg);
 
@@ -399,9 +409,12 @@
       }
       return { name: r.name, color: r.color || 'var(--accent)', points: pts };
     });
+    // Span the x-axis to at least the cutoff, extending if data runs longer.
+    let cumMaxX = cutoffHours || 24;
+    cumSeries.forEach(s => s.points.forEach(p => { if (p.x > cumMaxX) cumMaxX = p.x; }));
     makeLineChart('chart-cum', cumSeries, {
       height: 360,
-      xMin: 0, xMax: cutoffHours || 24,
+      xMin: 0, xMax: cumMaxX,
       yMin: 0, yMax: totalDist,
       cutoff: totalDist,
       yFmt: y => y.toFixed(0) + 'mi',
