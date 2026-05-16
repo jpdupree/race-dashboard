@@ -13,6 +13,10 @@ worker.
 ### Auth & users
 - `POST /login` — `{ email, password }` → `{ token, email, role, expiresAt }`
 - `POST /accept-invite` — `{ token, password }` → session + race assignment
+- `POST /change-password` — `{ currentPassword, newPassword }` (session required)
+- `POST /reset-link` — `{ email }` → one-time reset link (admin only)
+- `GET  /reset-info?token=...` → `{ email }`
+- `POST /reset-password` — `{ token, newPassword }` → session
 
 ### Race file IO
 - `POST /commit` — `{ path, content, sha?, message }` + `Authorization: Bearer <jwt>` (writer ACL enforced)
@@ -122,6 +126,23 @@ Two ways:
    link". Send them the link (text/Signal/email — your call). They open
    it, set a password, and are added to the race. Their account is stored
    in the `AUTH_KV` namespace, not in `USERS`.
+
+## Password management
+
+- **Change password** — any signed-in user can change their own password
+  from the "Password" button in the account bar. The new hash is written
+  to `AUTH_KV` (and `lookupUser` checks KV before `USERS`, so this works
+  even for accounts seeded via the `USERS` env var).
+- **Forgot password** — there's no email service, so resets are
+  admin-issued. An **admin** opens `admin.html`, enters the locked-out
+  user's email, and gets a one-time reset link (valid 2 days) to hand
+  over. The user opens it on `reset.html`, sets a new password, and is
+  signed in.
+
+  "Admin" means a user whose `USERS` entry (or KV record) has
+  `"role": "admin"`. Generate that hash with `admin/hash.html` — pick
+  **admin** in the role dropdown — and `wrangler secret put USERS`. The
+  account bar shows an **Admin** link only for admin users.
 
 ## Visibility & access model
 

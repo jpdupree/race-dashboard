@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reset Password · Race Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lib/race-theme.css?v=7">
+<style>
+  .wrap { max-width: 480px; margin: 60px auto; padding: 0 20px; }
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px; padding: 32px; position: relative;
+  }
+  .card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+  }
+  .title {
+    font-family: 'Fraunces', serif; font-size: 28px;
+    font-weight: 600; letter-spacing: -0.02em; margin-bottom: 8px;
+  }
+  .subtitle { color: var(--text-dim); font-size: 14px; line-height: 1.5; margin-bottom: 24px; }
+  .field { display: block; margin-bottom: 16px; }
+  .lbl {
+    display: block; font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: 6px;
+  }
+  input[type=email], input[type=password] {
+    width: 100%; padding: 12px 14px; box-sizing: border-box;
+    background: var(--bg-elevated); border: 1px solid var(--border-bright);
+    border-radius: 4px; color: var(--text);
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  .btn-row { display: flex; gap: 10px; align-items: center; margin-top: 8px; }
+  .hint { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+  .ok {
+    background: rgba(110, 231, 168, 0.08); border: 1px solid rgba(110, 231, 168, 0.4);
+    border-radius: 4px; padding: 14px 16px; margin-top: 18px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--green);
+  }
+  .err {
+    background: rgba(255, 89, 89, 0.06); border: 1px solid rgba(255, 89, 89, 0.4);
+    border-radius: 4px; padding: 14px 16px; margin-top: 18px;
+    font-size: 12px; color: var(--red);
+  }
+  .nav { margin-top: 24px; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+  .nav a { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="brand">
+    <div class="brand-meta">
+      <span>Race Hub</span><span>·</span><span>Reset password</span>
+    </div>
+    <h1 class="site">Reset your <em>password</em></h1>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <div id="state-loading">
+      <div class="title">Checking link…</div>
+      <div class="subtitle">One moment.</div>
+    </div>
+
+    <div id="state-form" style="display:none;">
+      <div class="title">Set a new password</div>
+      <div class="subtitle" id="form-subtitle">Choose a new password for your account.</div>
+      <label class="field">
+        <span class="lbl">Email</span>
+        <input type="email" id="rs-email" readonly />
+      </label>
+      <label class="field">
+        <span class="lbl">New password</span>
+        <input type="password" id="rs-password" autocomplete="new-password" minlength="8" />
+        <span class="hint">At least 8 characters.</span>
+      </label>
+      <label class="field">
+        <span class="lbl">Confirm new password</span>
+        <input type="password" id="rs-confirm" autocomplete="new-password" />
+      </label>
+      <div class="btn-row">
+        <button class="btn primary" id="rs-submit">Set new password</button>
+      </div>
+      <div id="form-err"></div>
+    </div>
+
+    <div id="state-done" style="display:none;">
+      <div class="title">Password reset</div>
+      <div class="subtitle">Your password is updated and you're signed in.</div>
+      <div class="btn-row" style="margin-top: 18px;">
+        <a class="btn primary" href="index.html">Go to the hub →</a>
+      </div>
+    </div>
+
+    <div id="state-error" style="display:none;">
+      <div class="title">Reset link problem</div>
+      <div class="err" id="err-detail"></div>
+      <div class="nav"><a href="index.html">← Back to hub</a></div>
+    </div>
+  </div>
+</div>
+
+<script src="lib/race-core.js?v=7"></script>
+<script>
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function showError(msg) {
+    document.getElementById('state-loading').style.display = 'none';
+    document.getElementById('state-form').style.display = 'none';
+    document.getElementById('state-error').style.display = '';
+    document.getElementById('err-detail').textContent = msg;
+  }
+
+  (async () => {
+    await Race.hub.load();
+    if (!Race.hub.isProxyMode()) {
+      return showError('This hub is running in direct (PAT) mode — password resets need the login worker.');
+    }
+    const token = Race.qs('reset');
+    if (!token) return showError('No reset token in the URL.');
+
+    let info;
+    try {
+      info = await Race.api.resetInfo(token);
+    } catch (err) {
+      return showError(err.message || 'Could not look up the reset link.');
+    }
+
+    document.getElementById('state-loading').style.display = 'none';
+    document.getElementById('state-form').style.display = '';
+    document.getElementById('rs-email').value = info.email;
+    document.getElementById('form-subtitle').textContent =
+      `Choose a new password for ${info.email}.`;
+
+    document.getElementById('rs-submit').addEventListener('click', onSubmit);
+    document.getElementById('rs-password').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('rs-confirm').focus();
+    });
+    document.getElementById('rs-confirm').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') onSubmit();
+    });
+
+    async function onSubmit() {
+      const password = document.getElementById('rs-password').value;
+      const confirm = document.getElementById('rs-confirm').value;
+      const errEl = document.getElementById('form-err');
+      errEl.innerHTML = '';
+      if (!password || password.length < 8) {
+        errEl.innerHTML = '<div class="err">Password must be at least 8 characters.</div>';
+        return;
+      }
+      if (password !== confirm) {
+        errEl.innerHTML = "<div class=\"err\">Passwords don't match.</div>";
+        return;
+      }
+      const btn = document.getElementById('rs-submit');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        await Race.api.resetPassword(token, password);
+        document.getElementById('state-form').style.display = 'none';
+        document.getElementById('state-done').style.display = '';
+      } catch (err) {
+        errEl.innerHTML = '<div class="err">' + escapeHtml(err.message || 'Could not reset password.') + '</div>';
+        btn.disabled = false; btn.textContent = 'Set new password';
+      }
+    }
+  })();
+</script>
+
+</body>
+</html>
