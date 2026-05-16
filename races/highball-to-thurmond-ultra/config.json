@@ -125,7 +125,7 @@
     }
   ],
   "targets": {
-    "caloriesPerHour": 250,
+    "caloriesPerHour": 100,
     "fluidOzPerHour": 20,
     "sodiumMgPerHour": 500
   }
