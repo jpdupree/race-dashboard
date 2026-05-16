@@ -1197,16 +1197,19 @@
         }).join('')
       : `<div class="empty">No share links yet.</div>`;
 
+    const dir = location.pathname.replace(/[^/]*$/, '');
+    const inviteUrl = token => `${location.origin}${dir}signup.html?invite=${encodeURIComponent(token)}`;
     const pendingHtml = (s.pendingInvites || []).length
       ? (s.pendingInvites || []).map(inv => {
           const exp = inv.expiresAt ? new Date(inv.expiresAt).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' }) : 'no expiry';
+          const url = inviteUrl(inv.token);
           return `
             <div class="share-row">
               <div>
                 <div class="lbl">Invite for ${escapeHtml(inv.email)} (${escapeHtml(inv.role)}) · expires ${exp}</div>
-                <div class="url">signup link copied when you sent it · token ${escapeHtml(inv.token.slice(0, 8))}…</div>
+                <div class="url">${escapeHtml(url)}</div>
               </div>
-              <span></span>
+              <button class="copy" data-copy-share="${escapeHtml(url)}">Copy</button>
               <button class="revoke" data-revoke-invite="${escapeHtml(inv.token)}">Cancel</button>
             </div>`;
         }).join('')
@@ -1313,14 +1316,19 @@
       inviteBtn.disabled = true; inviteBtn.textContent = 'Generating…';
       try {
         const r = await Race.api.invite(slug, email, role);
-        out.innerHTML = `
-          <div class="access-invite-result">
-            <div>Send this link to <strong>${escapeHtml(email)}</strong>. They'll set a password and land on the race with ${escapeHtml(role)} access.</div>
-            <span class="url">${escapeHtml(r.url)}</span>
-            <button class="btn copy" data-copy-share="${escapeHtml(r.url)}">Copy link</button>
-          </div>`;
-        out.querySelector('[data-copy-share]').addEventListener('click', (e) => copyToClipboard(r.url, e.currentTarget));
+        // Re-render the panel first (it shows the new pending invite), then
+        // render the result box into the fresh node so it isn't wiped.
         await loadAccess();
+        const out2 = document.getElementById('ax-invite-result');
+        if (out2) {
+          out2.innerHTML = `
+            <div class="access-invite-result">
+              <div>Send this link to <strong>${escapeHtml(email)}</strong>. They'll set a password and land on the race with ${escapeHtml(role)} access.</div>
+              <span class="url">${escapeHtml(r.url)}</span>
+              <button class="btn copy" data-copy-share="${escapeHtml(r.url)}">Copy link</button>
+            </div>`;
+          out2.querySelector('[data-copy-share]').addEventListener('click', (e) => copyToClipboard(r.url, e.currentTarget));
+        }
       } catch (err) {
         out.innerHTML = `<div class="access-err">${escapeHtml(err.message)}</div>`;
         inviteBtn.disabled = false; inviteBtn.textContent = 'Generate invite link';
@@ -1336,8 +1344,9 @@
       addExistingBtn.disabled = true; addExistingBtn.textContent = 'Adding…';
       try {
         await Race.api.accessAdd(slug, email, role);
-        out.innerHTML = `<div class="access-invite-result">Added ${escapeHtml(email)} as ${escapeHtml(role)}. They'll see this race in their hub on next visit.</div>`;
         await loadAccess();
+        const out2 = document.getElementById('ax-invite-result');
+        if (out2) out2.innerHTML = `<div class="access-invite-result">Added ${escapeHtml(email)} as ${escapeHtml(role)}. They'll see this race in their hub on next visit.</div>`;
       } catch (err) {
         out.innerHTML = `<div class="access-err">${escapeHtml(err.message)}</div>`;
         addExistingBtn.disabled = false; addExistingBtn.textContent = 'Add (already has account)';
@@ -1350,17 +1359,19 @@
       shareBtn.disabled = true; shareBtn.textContent = 'Generating…';
       try {
         const r = await Race.api.shareLink(slug, 'view');
-        out.innerHTML = `
-          <div class="access-share-result">
-            <div>Anyone with this link can view the live dashboard for the next 30 days. Revoke any time below.</div>
-            <span class="url">${escapeHtml(r.url)}</span>
-            <button class="btn copy" data-copy-share="${escapeHtml(r.url)}">Copy link</button>
-          </div>`;
-        out.querySelector('[data-copy-share]').addEventListener('click', (e) => copyToClipboard(r.url, e.currentTarget));
         await loadAccess();
+        const out2 = document.getElementById('ax-share-result');
+        if (out2) {
+          out2.innerHTML = `
+            <div class="access-share-result">
+              <div>Anyone with this link can view the live dashboard for the next 30 days. Revoke any time below.</div>
+              <span class="url">${escapeHtml(r.url)}</span>
+              <button class="btn copy" data-copy-share="${escapeHtml(r.url)}">Copy link</button>
+            </div>`;
+          out2.querySelector('[data-copy-share]').addEventListener('click', (e) => copyToClipboard(r.url, e.currentTarget));
+        }
       } catch (err) {
         out.innerHTML = `<div class="access-err">${escapeHtml(err.message)}</div>`;
-      } finally {
         shareBtn.disabled = false; shareBtn.textContent = 'Generate view share link';
       }
     });
