@@ -825,6 +825,7 @@ async function handleMyRaces(req, env) {
             : +((cfg.course.segments || []).reduce((a, s) => a + (s.distanceMi || 0), 0)).toFixed(2))
         : 0,
       runnerNames: (cfg.runners || []).map(r => r.name),
+      cutoffHours: cfg.cutoffs && cfg.cutoffs.totalHours || null,
       visibility: 'private',
       createdBy: cfg.createdBy || null,
       role: canEditRace(cfg, session.email) ? 'editor' : 'viewer'

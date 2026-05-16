@@ -782,7 +782,9 @@
       startTime: cfg.startTime,
       courseType: cfg.courseType,
       totalDistanceMi: +Race.course.totalDistanceMi(cfg).toFixed(2),
-      runnerNames: cfg.runners.map(r => r.name)
+      runnerNames: cfg.runners.map(r => r.name),
+      cutoffHours: cfg.cutoffs.totalHours,
+      createdBy: cfg.createdBy || null
     };
   }
 

@@ -203,6 +203,20 @@
   }
   .row-del:hover { color: var(--red); border-color: var(--red); }
 
+  table.aid-list td.color-cell { width: 56px; }
+  table.aid-list input[type="color"] {
+    width: 100%; height: 34px; padding: 2px; cursor: pointer;
+  }
+  .goals-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 16px;
+  }
+  @media (max-width: 480px) { .goals-grid { grid-template-columns: 1fr; } }
+  .goal-field { display: flex; flex-direction: column; gap: 5px; }
+  .goal-field span {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-muted);
+  }
+
   .toast {
     position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
     background: var(--bg-card); border: 1px solid var(--border-bright);
@@ -285,6 +299,37 @@
   </div>
 </section>
 
+<section class="editor collapsed" id="runner-editor">
+  <div class="editor-head" id="runner-editor-head">
+    <div class="editor-title">Runners &amp; goals</div>
+    <span class="editor-toggle">Edit</span>
+  </div>
+  <div class="editor-body">
+    <div class="editor-warn" id="runner-warn" style="display:none;"></div>
+    <table class="aid-list">
+      <thead>
+        <tr><th>Name</th><th>Bib / label</th><th>Dot</th><th></th></tr>
+      </thead>
+      <tbody id="runner-edit-rows"></tbody>
+    </table>
+    <button class="add-row" type="button" id="add-runner-edit">+ Add runner</button>
+
+    <div class="goals-grid">
+      <label class="goal-field"><span>Calories / hr</span>
+        <input type="number" id="goal-cal" min="0" step="10" /></label>
+      <label class="goal-field"><span>Fluid oz / hr</span>
+        <input type="number" id="goal-fluid" min="0" step="1" /></label>
+      <label class="goal-field"><span>Sodium mg / hr</span>
+        <input type="number" id="goal-sodium" min="0" step="50" /></label>
+    </div>
+
+    <div style="margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;">
+      <button class="btn" id="runner-reload">Reset</button>
+      <button class="btn primary" id="runner-save">Save changes</button>
+    </div>
+  </div>
+</section>
+
 <footer class="site">
   <span>Pit times stored in this race's data.json</span>
   <span id="last-updated">—</span>
@@ -306,7 +351,9 @@
 
   let cfg = null, data = null;
   let editingAid = null; // local editable copy of aid stations
+  let editingRunners = null; // local editable copy of the runner roster
   let stickyIntakeLegByRunner = {}; // runnerId -> selected legIndex
+  const RUNNER_COLORS = ['#c44a18', '#1f5e8a', '#3a8a3a', '#8a3a5e', '#8a5e3a', '#5e3a8a'];
 
   // ---------- toast ----------
   function toast(text, kind) {
@@ -736,8 +783,102 @@
       });
       renderAidEditor();
     }
+    if (!editingRunners) {
+      editingRunners = (cfg.runners || []).map(r => ({
+        id: r.id, name: r.name || '', bib: r.bib || '', color: r.color || RUNNER_COLORS[0]
+      }));
+      const t = cfg.targets || {};
+      document.getElementById('goal-cal').value = t.caloriesPerHour ?? '';
+      document.getElementById('goal-fluid').value = t.fluidOzPerHour ?? '';
+      document.getElementById('goal-sodium').value = t.sodiumMgPerHour ?? '';
+      renderRunnerRows();
+    }
     tick();
     updateLastUpdatedLabel();
+  }
+
+  function renderRunnerRows() {
+    const tbody = document.getElementById('runner-edit-rows');
+    tbody.innerHTML = editingRunners.map((r, i) => `
+      <tr>
+        <td><input type="text" data-runner="${i}" data-k="name" value="${escapeAttr(r.name)}" placeholder="Runner name" /></td>
+        <td><input type="text" data-runner="${i}" data-k="bib" value="${escapeAttr(r.bib)}" placeholder="#42 or label" /></td>
+        <td class="color-cell"><input type="color" data-runner="${i}" data-k="color" value="${r.color || RUNNER_COLORS[0]}" /></td>
+        <td>${editingRunners.length > 1 ? `<button class="row-del" data-del-runner="${i}" type="button" aria-label="Delete">×</button>` : ''}</td>
+      </tr>
+    `).join('');
+    // Warn when removing a runner would drop logged data.
+    const ids = new Set(editingRunners.map(r => r.id).filter(Boolean));
+    const orphaned = (data.runners || []).filter(d => !ids.has(d.id) && (d.legs || []).some(l => l.startTime || l.endTime));
+    const warn = document.getElementById('runner-warn');
+    if (orphaned.length) {
+      warn.style.display = '';
+      warn.textContent = `${orphaned.length} removed runner(s) have logged legs — saving will delete that data.`;
+    } else {
+      warn.style.display = 'none';
+    }
+  }
+
+  async function saveRunnerEditor() {
+    // Build the roster, keeping stable ids and assigning deduped ones to new runners.
+    const used = new Set();
+    const runners = [];
+    for (const r of editingRunners) {
+      const name = (r.name || '').trim();
+      if (!name) continue; // skip blank rows
+      let id = r.id;
+      if (!id) {
+        const base = Race.slug(name);
+        let cand = base, n = 2;
+        while (used.has(cand)) cand = `${base}-${n++}`;
+        id = cand;
+      }
+      if (used.has(id)) { toast(`Duplicate runner id "${id}".`, 'error'); return; }
+      used.add(id);
+      runners.push({ id, name, bib: (r.bib || '').trim() || name, color: r.color || RUNNER_COLORS[0] });
+    }
+    if (!runners.length) { toast('At least one runner is required.', 'error'); return; }
+
+    const targets = {
+      caloriesPerHour: parseFloat(document.getElementById('goal-cal').value) || 0,
+      fluidOzPerHour:  parseFloat(document.getElementById('goal-fluid').value) || 0,
+      sodiumMgPerHour: parseFloat(document.getElementById('goal-sodium').value) || 0
+    };
+
+    const keep = new Set(runners.map(r => r.id));
+    const orphaned = (data.runners || []).filter(d => !keep.has(d.id) && (d.legs || []).some(l => l.startTime || l.endTime));
+    if (orphaned.length && !confirm(`${orphaned.length} removed runner(s) have logged legs. Saving deletes that data. Continue?`)) return;
+
+    try {
+      await Race.gh.mutateJson(Race.auth.cfg(), CONFIG_PATH, (remote) => {
+        remote.runners = runners;
+        remote.targets = targets;
+        return remote;
+      }, `pit: update runners & goals for ${slug}`);
+
+      // Sync data.json: keep existing legs, add new runners, drop removed ones.
+      await Race.gh.mutateJson(Race.auth.cfg(), DATA_PATH, (remote) => {
+        const byId = new Map((remote.runners || []).map(d => [d.id, d]));
+        remote.runners = runners.map(r => byId.get(r.id) || { id: r.id, legs: [] });
+        remote.lastUpdated = new Date().toISOString();
+        return remote;
+      }, `pit: sync runner roster for ${slug}`);
+
+      // Public races also list runner names in the hub manifest.
+      if (cfg.visibility !== 'private') {
+        await Race.gh.mutateJson(Race.auth.cfg(), 'races/index.json', (m) => {
+          const e = (m.races || []).find(x => x.slug === slug);
+          if (e) { e.runnerNames = runners.map(r => r.name); m.lastUpdated = new Date().toISOString(); }
+          return m;
+        }, `pit: refresh index runners for ${slug}`);
+      }
+
+      toast('Runners & goals saved', 'ok');
+      editingRunners = null;
+      await load();
+    } catch (err) {
+      toast(`Save failed: ${err.message}`, 'error');
+    }
   }
 
   function renderAidEditor() {
@@ -894,6 +1035,29 @@
     editingAid = null; render();
   });
   document.getElementById('aid-save').addEventListener('click', saveAidStations);
+
+  document.getElementById('runner-editor-head').addEventListener('click', () => {
+    document.getElementById('runner-editor').classList.toggle('collapsed');
+  });
+  document.getElementById('add-runner-edit').addEventListener('click', () => {
+    editingRunners.push({ id: null, name: '', bib: '', color: RUNNER_COLORS[editingRunners.length % RUNNER_COLORS.length] });
+    renderRunnerRows();
+  });
+  document.getElementById('runner-edit-rows').addEventListener('input', (e) => {
+    const i = e.target.dataset.runner, k = e.target.dataset.k;
+    if (i == null || !k) return;
+    editingRunners[+i][k] = e.target.value;
+  });
+  document.getElementById('runner-edit-rows').addEventListener('click', (e) => {
+    const del = e.target.dataset.delRunner;
+    if (del == null) return;
+    editingRunners.splice(+del, 1);
+    renderRunnerRows();
+  });
+  document.getElementById('runner-reload').addEventListener('click', () => {
+    editingRunners = null; render();
+  });
+  document.getElementById('runner-save').addEventListener('click', saveRunnerEditor);
 
   // Load hub.json first so we know whether to render proxy or PAT auth UI.
   (async () => {
