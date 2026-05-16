@@ -371,9 +371,11 @@
   function renderConnStatus() {
     const dot = document.getElementById('conn-dot');
     const txt = document.getElementById('conn-text');
+    const toggle = document.getElementById('conn-toggle');
     if (isProxyMode()) {
       const s = Race.auth.loadSession();
-      if (s && s.session && (!s.expiresAt || s.expiresAt > Date.now())) {
+      const signedIn = !!(s && s.session && (!s.expiresAt || s.expiresAt > Date.now()));
+      if (signedIn) {
         const expIn = s.expiresAt ? Math.max(0, Math.floor((s.expiresAt - Date.now()) / 60000)) : null;
         dot.className = 'status-dot connected';
         txt.innerHTML = `Signed in as <strong>${s.email || s.username || '?'}</strong>${expIn != null ? ` · session ${expIn}m left` : ''}`;
@@ -381,6 +383,7 @@
         dot.className = 'status-dot';
         txt.textContent = 'Not signed in · button presses will fail until you sign in.';
       }
+      toggle.textContent = signedIn ? 'Account' : 'Sign in';
     } else {
       const c = Race.config.load();
       if (c && c.token) {
@@ -391,6 +394,7 @@
         dot.className = 'status-dot';
         txt.textContent = 'Not connected · button presses will fail until you connect.';
       }
+      toggle.textContent = 'Setup';
     }
   }
 
@@ -1062,9 +1066,6 @@
   // Load hub.json first so we know whether to render proxy or PAT auth UI.
   (async () => {
     await Race.hub.load();
-    if (isProxyMode()) {
-      document.getElementById('conn-toggle').textContent = 'Sign in';
-    }
     if (!Race.auth.has()) openConnForm();
     renderConnStatus();
     await load();

@@ -32,7 +32,7 @@ worker.
 ### Misc
 - `GET /health` → `{ ok: true, kv: <bool> }`
 
-Session tokens are HS256 JWTs valid for 12 hours.
+Session tokens are HS256 JWTs valid for 7 days.
 
 ## One-time setup
 

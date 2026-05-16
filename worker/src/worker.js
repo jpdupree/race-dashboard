@@ -42,9 +42,9 @@
 //                    Without it, /login still works with USERS env var and ACL still works,
 //                    but invite & share-link endpoints return 503.
 //
-// Session JWTs are HS256, 12 hours. Share-token sessions are scoped to a single race and role.
+// Session JWTs are HS256, 7 days. Share-token sessions are scoped to a single race and role.
 
-const SESSION_HOURS = 12;
+const SESSION_HOURS = 168; // 7 days
 const PBKDF2_DEFAULT_ITERATIONS = 100000;
 const INVITE_TTL_DAYS = 14;
 const SHARE_TTL_DAYS_DEFAULT = 30;
