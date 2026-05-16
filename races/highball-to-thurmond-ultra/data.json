@@ -1,34 +1,9 @@
 {
-  "lastUpdated": "2026-05-16T00:20:43.994Z",
+  "lastUpdated": null,
   "runners": [
     {
       "id": "soft-serve",
-      "legs": [
-        {
-          "index": 1,
-          "startTime": "2026-05-15T23:30:12.203Z",
-          "endTime": "2026-05-15T23:31:14.932Z"
-        },
-        {
-          "index": 2,
-          "startTime": "2026-05-15T23:32:41.441Z",
-          "endTime": "2026-05-15T23:51:18.897Z"
-        },
-        {
-          "index": 3,
-          "startTime": "2026-05-15T23:53:09.713Z",
-          "endTime": "2026-05-16T00:00:41.373Z"
-        },
-        {
-          "index": 4,
-          "startTime": "2026-05-16T00:08:17.976Z",
-          "endTime": "2026-05-16T00:17:45.724Z"
-        },
-        {
-          "index": 5,
-          "startTime": "2026-05-16T00:20:43.606Z"
-        }
-      ]
+      "legs": []
     }
   ]
 }
