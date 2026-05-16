@@ -425,7 +425,7 @@
   </div>
   <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
     <div class="race-clock">
-      <span class="label">Race Time Elapsed</span>
+      <span class="label" id="elapsed-label">Race Time Elapsed</span>
       <span class="time" id="elapsed">--:--:--</span>
     </div>
     <a class="nav-link" id="lk-pit" href="#" style="display:none;">Pit →</a>
@@ -807,10 +807,14 @@
     const cutoffSec = (cfg.cutoffs?.totalHours || 0) * 3600;
     let diff = Math.floor((now - start) / 1000);
     const el = document.getElementById('elapsed');
+    const label = document.getElementById('elapsed-label');
     if (diff < 0) {
-      el.textContent = `-${Race.fmt.duration(-diff)}`;
+      // Race hasn't started — count down to the gun.
+      if (label) label.textContent = 'Race Starts In';
+      el.textContent = Race.fmt.duration(-diff);
       el.style.color = 'var(--text-muted)';
     } else {
+      if (label) label.textContent = 'Race Time Elapsed';
       const capped = Math.min(diff, cutoffSec || diff);
       el.textContent = Race.fmt.duration(capped);
       el.style.color = (cutoffSec && capped >= cutoffSec) ? 'var(--red)' : 'var(--text)';
