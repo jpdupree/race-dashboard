@@ -155,7 +155,9 @@ iteration.
       "startTime": "2026-07-19T04:00:00-06:00",
       "courseType": "segments",
       "totalDistanceMi": 101.3,
-      "runnerNames": ["Jason"]
+      "runnerNames": ["Jason"],
+      "cutoffHours": 36,
+      "createdBy": "jason@example.com"
     }
   ],
   "lastUpdated": "2026-05-15T12:00:00Z"

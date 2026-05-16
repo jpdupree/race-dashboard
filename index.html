@@ -26,7 +26,9 @@
     content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
     background: linear-gradient(90deg, var(--accent), transparent);
   }
-  .card.past::before { background: linear-gradient(90deg, var(--text-muted), transparent); }
+  .card.status-live::before     { background: linear-gradient(90deg, var(--green), transparent); }
+  .card.status-upcoming::before { background: linear-gradient(90deg, var(--blue), transparent); }
+  .card.status-finished::before { background: linear-gradient(90deg, var(--text-muted), transparent); }
   .card-head {
     padding: 22px 24px 16px;
     border-bottom: 1px solid var(--border);
@@ -58,6 +60,32 @@
   .badge.loops { color: var(--blue); }
   .badge.segments { color: var(--accent); }
   .badge.past { color: var(--text-muted); }
+
+  .card-status {
+    display: inline-flex; align-items: center; gap: 5px; align-self: flex-start;
+    font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    padding: 3px 7px; border-radius: 2px; border: 1px solid currentColor;
+    margin-bottom: 10px;
+  }
+  .card-status.status-live { color: var(--green); }
+  .card-status.status-upcoming { color: var(--blue); }
+  .card-status.status-finished { color: var(--text-muted); }
+  .live-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  .sort-control {
+    margin-left: auto; display: flex; align-items: center; gap: 8px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted);
+  }
+  .sort-control select {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    background: var(--bg-elevated); color: var(--text);
+    border: 1px solid var(--border-bright); border-radius: 4px;
+    padding: 8px 10px; text-transform: none; letter-spacing: 0;
+  }
 
   .empty {
     background: var(--bg-card); border: 1px dashed var(--border-bright);
@@ -119,26 +147,54 @@
 
 <script src="lib/race-core.js?v=5"></script>
 <script>
-  function sortRaces(races) {
-    // Future races (or undated) first, ascending; past races last, descending.
+  const SORT_KEY = 'race-hub-sort-v1';
+  let loadedRaces = [];
+
+  // upcoming → not started; live → started, within the cutoff window;
+  // finished → past the cutoff. cutoffHours falls back to 36 for older
+  // manifest entries that predate the field.
+  function raceStatus(r) {
+    if (!r.startTime) return 'upcoming';
+    const start = new Date(r.startTime).getTime();
     const now = Date.now();
-    const upcoming = [], past = [];
-    for (const r of races) {
-      const t = r.startTime ? new Date(r.startTime).getTime() : Infinity;
-      (t >= now - 24*3600*1000 ? upcoming : past).push({ r, t });
-    }
-    upcoming.sort((a, b) => a.t - b.t);
-    past.sort((a, b) => b.t - a.t);
-    return [...upcoming.map(x => x.r), ...past.map(x => x.r)];
+    if (now < start) return 'upcoming';
+    const end = start + (r.cutoffHours || 36) * 3600 * 1000;
+    return now < end ? 'live' : 'finished';
   }
 
-  function isPast(r) {
-    if (!r.startTime) return false;
-    return new Date(r.startTime).getTime() < Date.now() - 36 * 3600 * 1000;
+  function statusRank(s) {
+    return { live: 0, upcoming: 1, finished: 2 }[s] != null
+      ? { live: 0, upcoming: 1, finished: 2 }[s] : 3;
+  }
+
+  function sortRaces(races, mode) {
+    const me = (Race.auth.email() || '').toLowerCase();
+    const rows = races.map(r => ({ r, s: raceStatus(r) }));
+    const t = r => r.startTime ? new Date(r.startTime).getTime() : Infinity;
+    const byStatusThenDate = (a, b) => {
+      const d = statusRank(a.s) - statusRank(b.s);
+      if (d) return d;
+      // live & upcoming: soonest first; finished: most recent first.
+      return a.s === 'finished' ? (t(b.r) - t(a.r)) : (t(a.r) - t(b.r));
+    };
+    if (mode === 'az') {
+      rows.sort((a, b) => (a.r.name || '').localeCompare(b.r.name || ''));
+    } else if (mode === 'owned') {
+      rows.sort((a, b) => {
+        const ao = (a.r.createdBy || '').toLowerCase() === me ? 0 : 1;
+        const bo = (b.r.createdBy || '').toLowerCase() === me ? 0 : 1;
+        return (ao - bo) || byStatusThenDate(a, b);
+      });
+    } else {
+      rows.sort(byStatusThenDate);
+    }
+    return rows.map(x => x.r);
   }
 
   function renderCard(r) {
-    const past = isPast(r);
+    const status = raceStatus(r);
+    const finished = status === 'finished';
+    const statusText = { live: 'Live', upcoming: 'Upcoming', finished: 'Finished' }[status];
     const courseLabel = r.courseType === 'loops' ? 'Loops' : 'Segments';
     const runners = (r.runnerNames || []).join(' · ') || '—';
     const startDate = r.startTime
@@ -153,20 +209,29 @@
       badge = `<span class="card-badge">Editor</span>`;
     }
     return `
-      <a class="card ${past ? 'past' : ''}" href="race.html?id=${encodeURIComponent(r.slug)}">
+      <a class="card status-${status}" href="race.html?id=${encodeURIComponent(r.slug)}">
         ${badge}
         <div class="card-head">
+          <div class="card-status status-${status}">${status === 'live' ? '<span class="live-dot"></span>' : ''}${statusText}</div>
           <div class="card-name">${escapeHtml(r.name)}</div>
           <div class="card-loc">${escapeHtml(r.location || '')}</div>
         </div>
         <div class="card-body">
           <div class="card-row"><span class="k">Date</span><span class="v">${startDate}</span></div>
           <div class="card-row"><span class="k">Distance</span><span class="v">${dist}</span></div>
-          <div class="card-row"><span class="k">Course</span><span class="v"><span class="badge ${past ? 'past' : r.courseType}">${courseLabel}</span></span></div>
+          <div class="card-row"><span class="k">Course</span><span class="v"><span class="badge ${finished ? 'past' : r.courseType}">${courseLabel}</span></span></div>
           <div class="card-row"><span class="k">Runners</span><span class="v">${escapeHtml(runners)}</span></div>
         </div>
       </a>
     `;
+  }
+
+  function renderList() {
+    const sel = document.getElementById('sort-mode');
+    if (!sel) return;
+    localStorage.setItem(SORT_KEY, sel.value);
+    document.getElementById('cards').innerHTML =
+      sortRaces(loadedRaces, sel.value).map(renderCard).join('');
   }
 
   function escapeHtml(s) {
@@ -220,14 +285,26 @@
           </div>
         `;
       } else {
-        const sorted = sortRaces(races);
+        loadedRaces = races;
         body.innerHTML = `
           <div class="hub-actions">
             <a class="btn primary" href="setup.html">+ New race</a>
+            <label class="sort-control">Sort
+              <select id="sort-mode">
+                <option value="status">Live / upcoming / past</option>
+                <option value="az">Name (A–Z)</option>
+                ${isAuthed ? '<option value="owned">Owned first</option>' : ''}
+              </select>
+            </label>
           </div>
           ${myErr ? `<div class="error-banner" style="display:block; margin-bottom: 16px;">Could not load private races: ${escapeHtml(myErr.message)}</div>` : ''}
-          <div class="cards">${sorted.map(renderCard).join('')}</div>
+          <div class="cards" id="cards"></div>
         `;
+        const sel = document.getElementById('sort-mode');
+        const saved = localStorage.getItem(SORT_KEY) || 'status';
+        if ([...sel.options].some(o => o.value === saved)) sel.value = saved;
+        sel.addEventListener('change', renderList);
+        renderList();
       }
 
       // Repo link for footer
