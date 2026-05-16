@@ -127,6 +127,8 @@ iteration.
     race-core.js          shared helpers (compute, GitHub API, GPX, format, auth)
     race-theme.css        shared design tokens + base styles
   signup.html             invite-acceptance landing page (proxy mode only)
+  reset.html              password-reset landing page (proxy mode only)
+  admin.html              hub admin tools — issue password-reset links
   admin/
     hash.html             local PBKDF2 password hasher for the proxy USERS list
   worker/

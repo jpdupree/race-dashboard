@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Admin · Race Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lib/race-theme.css?v=7">
+<style>
+  .wrap { max-width: 560px; margin: 0 auto; }
+  .panel {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px; padding: 24px 28px; position: relative;
+  }
+  .panel::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+  }
+  .panel h2 {
+    font-family: 'Fraunces', serif; font-size: 22px; font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .panel .lead { color: var(--text-dim); font-size: 13px; line-height: 1.5; margin-bottom: 18px; }
+  .gate {
+    background: var(--bg-card); border: 1px dashed var(--border-bright);
+    border-radius: 6px; padding: 32px; text-align: center; color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+  }
+  #reset-out { margin-top: 16px; }
+  .ok {
+    background: rgba(110, 231, 168, 0.08); border: 1px solid rgba(110, 231, 168, 0.4);
+    border-radius: 4px; padding: 14px 16px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.5;
+  }
+  .ok .url { display: block; color: var(--green); word-break: break-all; margin: 8px 0; }
+  .err {
+    background: rgba(255, 89, 89, 0.06); border: 1px solid rgba(255, 89, 89, 0.4);
+    border-radius: 4px; padding: 12px 14px; font-size: 12px; color: var(--red);
+  }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="brand">
+    <div class="brand-meta">
+      <span>Race Hub</span><span>·</span>
+      <a href="index.html" style="color: inherit; text-decoration: none;">← Hub</a>
+    </div>
+    <h1 class="site"><em>Admin</em></h1>
+  </div>
+</header>
+
+<div class="wrap">
+  <div id="error" class="error-banner" style="display:none;"></div>
+  <div class="gate" id="gate">Checking…</div>
+
+  <section class="panel" id="reset-panel" style="display:none;">
+    <h2>Reset a user's password</h2>
+    <p class="lead">Generate a one-time reset link for someone who's locked out, then
+      send it to them (Signal, text, email — your call). The link works for 2 days.</p>
+    <label class="field">
+      <span class="lbl">User email</span>
+      <input type="email" id="reset-email" placeholder="crew@example.com" autocomplete="off" spellcheck="false" />
+    </label>
+    <button class="btn primary" type="button" id="reset-gen">Generate reset link</button>
+    <div id="reset-out"></div>
+  </section>
+</div>
+
+<script src="lib/race-core.js?v=7"></script>
+<script>
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  (async () => {
+    await Race.hub.load();
+    const gate = document.getElementById('gate');
+    if (!Race.hub.isProxyMode()) {
+      gate.textContent = 'Admin tools need the login worker (proxy mode).';
+      return;
+    }
+    if (!Race.auth.has()) {
+      gate.textContent = 'Sign in (top right) to use admin tools.';
+      return;
+    }
+    const s = Race.auth.loadSession();
+    if (!s || s.role !== 'admin') {
+      gate.textContent = 'Admins only — your account does not have the admin role.';
+      return;
+    }
+    gate.style.display = 'none';
+    document.getElementById('reset-panel').style.display = '';
+    document.getElementById('reset-gen').addEventListener('click', genReset);
+    document.getElementById('reset-email').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') genReset();
+    });
+  })();
+
+  async function genReset() {
+    const email = document.getElementById('reset-email').value.trim();
+    const out = document.getElementById('reset-out');
+    if (!email) { out.innerHTML = '<div class="err">Email required.</div>'; return; }
+    const btn = document.getElementById('reset-gen');
+    btn.disabled = true; btn.textContent = 'Generating…';
+    try {
+      const r = await Race.api.resetLink(email);
+      out.innerHTML =
+        '<div class="ok">Send this reset link to <strong>' + esc(email) + '</strong>. ' +
+        'They open it and set a new password. Expires in 2 days.' +
+        '<span class="url">' + esc(r.url) + '</span>' +
+        '<button class="btn" type="button" id="reset-copy">Copy link</button></div>';
+      document.getElementById('reset-copy').addEventListener('click', (e) => {
+        const b = e.currentTarget;
+        const done = () => { b.textContent = 'Copied ✓'; setTimeout(() => { b.textContent = 'Copy link'; }, 1200); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(r.url).then(done, done);
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = r.url; document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); } catch (e2) {}
+          document.body.removeChild(ta); done();
+        }
+      });
+    } catch (err) {
+      out.innerHTML = '<div class="err">' + esc(err.message || 'Could not generate reset link.') + '</div>';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Generate reset link';
+    }
+  }
+</script>
+
+</body>
+</html>

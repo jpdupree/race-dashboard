@@ -6,6 +6,9 @@
 //     POST /login            { email, password }                      → { token, email, role, expiresAt }
 //     POST /accept-invite    { token, password }                      → { token, email, role, expiresAt, slug, role: 'editor'|'viewer' }
 //     POST /change-password  { currentPassword, newPassword }          → { ok: true }  (session required)
+//     POST /reset-link       { email }                                 → { url, token } (admin only)
+//     GET  /reset-info?token=...                                        → { email }
+//     POST /reset-password   { token, newPassword }                     → { token, email, role, expiresAt }
 //
 //   Race file IO (session required; reads honour share-token query)
 //     POST /commit           { path, content, sha?, message }         → GitHub PUT response (writer ACL enforced)
@@ -49,6 +52,7 @@ const SESSION_HOURS = 168; // 7 days
 const PBKDF2_DEFAULT_ITERATIONS = 100000;
 const INVITE_TTL_DAYS = 14;
 const SHARE_TTL_DAYS_DEFAULT = 30;
+const RESET_TTL_DAYS = 2;
 
 // ---------- CORS ----------
 function corsHeaders(env, req) {
@@ -387,6 +391,79 @@ async function handleChangePassword(req, env) {
     role: user.role || 'crew', updatedAt: new Date().toISOString()
   }));
   return json({ ok: true }, {}, env, req);
+}
+
+// Admin-only: mint a one-time password-reset link for a locked-out user.
+async function handleResetLink(req, env) {
+  const session = await requireAuth(req, env);
+  if (!session || !session.email) return json({ error: 'Unauthorized' }, { status: 401 }, env, req);
+  if (session.role !== 'admin') return json({ error: 'Admins only' }, { status: 403 }, env, req);
+  if (!env.AUTH_KV) return json({ error: 'Password resets require AUTH_KV KV namespace binding' }, { status: 503 }, env, req);
+  let body;
+  try { body = await req.json(); }
+  catch (e) { return json({ error: 'Invalid JSON' }, { status: 400 }, env, req); }
+  const email = normalizeEmail(body && body.email);
+  if (!email) return json({ error: 'email required' }, { status: 400 }, env, req);
+  const user = await lookupUser(env, email);
+  if (!user) return json({ error: 'No account with that email' }, { status: 404 }, env, req);
+
+  const token = randomToken(24);
+  const expiresAt = Date.now() + RESET_TTL_DAYS * 24 * 3600 * 1000;
+  await env.AUTH_KV.put('reset:' + token, JSON.stringify({
+    email, createdBy: session.email, createdAt: new Date().toISOString(), expiresAt
+  }), { expiration: Math.floor(expiresAt / 1000) });
+
+  const base = publicBaseUrl(env, req);
+  const url = (base ? base : '') + `/reset.html?reset=${encodeURIComponent(token)}`;
+  return json({ token, url, email, expiresAt }, {}, env, req);
+}
+
+// Public: metadata for a reset link, so reset.html can show the email.
+async function handleResetInfo(req, env) {
+  if (!env.AUTH_KV) return json({ error: 'Password resets require AUTH_KV KV namespace binding' }, { status: 503 }, env, req);
+  const url = new URL(req.url);
+  const token = url.searchParams.get('token');
+  if (!token) return json({ error: 'Missing token' }, { status: 400 }, env, req);
+  const raw = await env.AUTH_KV.get('reset:' + token);
+  if (!raw) return json({ error: 'Reset link not found or expired' }, { status: 404 }, env, req);
+  let rec;
+  try { rec = JSON.parse(raw); }
+  catch (e) { return json({ error: 'Corrupt reset token' }, { status: 500 }, env, req); }
+  if (rec.expiresAt && rec.expiresAt < Date.now()) {
+    return json({ error: 'Reset link expired' }, { status: 410 }, env, req);
+  }
+  return json({ email: rec.email, expiresAt: rec.expiresAt }, {}, env, req);
+}
+
+// Public: redeem a reset link — set a new password and return a session.
+async function handleResetPassword(req, env) {
+  if (!env.AUTH_KV) return json({ error: 'Password resets require AUTH_KV KV namespace binding' }, { status: 503 }, env, req);
+  let body;
+  try { body = await req.json(); }
+  catch (e) { return json({ error: 'Invalid JSON' }, { status: 400 }, env, req); }
+  const { token, newPassword } = body || {};
+  if (!token || !newPassword) return json({ error: 'token and newPassword required' }, { status: 400 }, env, req);
+  if (newPassword.length < 8) return json({ error: 'New password must be at least 8 characters' }, { status: 400 }, env, req);
+  const raw = await env.AUTH_KV.get('reset:' + token);
+  if (!raw) return json({ error: 'Reset link not found or expired' }, { status: 404 }, env, req);
+  let rec;
+  try { rec = JSON.parse(raw); }
+  catch (e) { return json({ error: 'Corrupt reset token' }, { status: 500 }, env, req); }
+  if (rec.expiresAt && rec.expiresAt < Date.now()) {
+    await env.AUTH_KV.delete('reset:' + token);
+    return json({ error: 'Reset link expired' }, { status: 410 }, env, req);
+  }
+  const existing = await lookupUser(env, rec.email);
+  const role = existing ? existing.role : 'crew';
+  const { hash, salt, iterations } = await hashPassword(newPassword);
+  await env.AUTH_KV.put('user:' + rec.email, JSON.stringify({
+    email: rec.email, hash, salt, iterations, role, updatedAt: new Date().toISOString()
+  }));
+  await env.AUTH_KV.delete('reset:' + token);
+
+  const exp = Date.now() + SESSION_HOURS * 3600 * 1000;
+  const sessionToken = await signJwt({ sub: rec.email, email: rec.email, role, exp }, env.JWT_SECRET);
+  return json({ token: sessionToken, email: rec.email, username: rec.email, role, expiresAt: exp }, {}, env, req);
 }
 
 async function handleCommit(req, env) {
@@ -893,6 +970,9 @@ export default {
     if (request.method === 'POST' && path === '/login')           return handleLogin(request, env);
     if (request.method === 'POST' && path === '/accept-invite')   return handleAcceptInvite(request, env);
     if (request.method === 'POST' && path === '/change-password') return handleChangePassword(request, env);
+    if (request.method === 'POST' && path === '/reset-link')      return handleResetLink(request, env);
+    if (request.method === 'GET'  && path === '/reset-info')      return handleResetInfo(request, env);
+    if (request.method === 'POST' && path === '/reset-password')  return handleResetPassword(request, env);
     if (request.method === 'GET'  && path === '/invite-info')     return handleInviteInfo(request, env);
     if (request.method === 'POST' && path === '/commit')          return handleCommit(request, env);
     if (request.method === 'GET'  && path === '/get')             return handleGet(request, env);
