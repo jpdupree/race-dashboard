@@ -107,6 +107,7 @@ footer.site {
   max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .account-bar button.account-signout,
+.account-bar button.account-pw,
 .account-bar a.account-signin {
   font-family: 'JetBrains Mono', monospace; font-size: 10px;
   letter-spacing: 0.12em; text-transform: uppercase;
@@ -115,10 +116,37 @@ footer.site {
   cursor: pointer; text-decoration: none;
 }
 .account-bar button.account-signout:hover,
+.account-bar button.account-pw:hover,
 .account-bar a.account-signin:hover {
   color: var(--accent); border-color: var(--accent);
 }
 @media print { .account-bar { display: none !important; } }
+
+/* Change-password modal (injected by race-core.js) */
+.pw-modal-overlay {
+  display: none; position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0, 0, 0, 0.6);
+  align-items: center; justify-content: center; padding: 20px;
+}
+.pw-modal {
+  background: var(--bg-card); border: 1px solid var(--border-bright);
+  border-radius: 6px; padding: 24px; width: 100%; max-width: 360px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+.pw-modal-title {
+  font-family: 'Fraunces', serif; font-size: 20px; font-weight: 600;
+  margin-bottom: 16px;
+}
+.pw-field { display: block; margin-bottom: 12px; }
+.pw-field > span {
+  display: block; font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-muted);
+  margin-bottom: 5px;
+}
+.pw-modal-msg { font-size: 12px; min-height: 16px; margin: 4px 0 12px; }
+.pw-modal-msg.err { color: var(--red); }
+.pw-modal-msg.ok { color: var(--green); }
+.pw-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
 .error-banner {
   background: rgba(255, 89, 89, 0.1); border: 1px solid var(--red);

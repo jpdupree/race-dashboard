@@ -5,6 +5,7 @@
 //   Auth & users
 //     POST /login            { email, password }                      → { token, email, role, expiresAt }
 //     POST /accept-invite    { token, password }                      → { token, email, role, expiresAt, slug, role: 'editor'|'viewer' }
+//     POST /change-password  { currentPassword, newPassword }          → { ok: true }  (session required)
 //
 //   Race file IO (session required; reads honour share-token query)
 //     POST /commit           { path, content, sha?, message }         → GitHub PUT response (writer ACL enforced)
@@ -200,9 +201,21 @@ async function requireAuth(req, env) {
 // Users come from two places:
 //   - USERS env var (admin-managed, baked in at deploy)
 //   - AUTH_KV at key user:<email> (dynamically created via invite acceptance)
+// Users come from two places. AUTH_KV (user:<email>) is checked FIRST so a
+// changed password — written to KV — overrides the baked-in USERS env var.
+// USERS is the bootstrap set; KV is the live store.
 async function lookupUser(env, email) {
   email = normalizeEmail(email);
   if (!email) return null;
+  if (env.AUTH_KV) {
+    const raw = await env.AUTH_KV.get('user:' + email);
+    if (raw) {
+      try {
+        const u = JSON.parse(raw);
+        return { email, hash: u.hash, salt: u.salt, iterations: u.iterations, role: u.role || 'crew', source: 'kv' };
+      } catch (e) {}
+    }
+  }
   let envUsers = [];
   try { envUsers = JSON.parse(env.USERS || '[]'); } catch (e) { envUsers = []; }
   const envUser = envUsers.find(u => normalizeEmail(u.email || u.username) === email);
@@ -215,15 +228,6 @@ async function lookupUser(env, email) {
       role: envUser.role || 'crew',
       source: 'env'
     };
-  }
-  if (env.AUTH_KV) {
-    const raw = await env.AUTH_KV.get('user:' + email);
-    if (raw) {
-      try {
-        const u = JSON.parse(raw);
-        return { email, hash: u.hash, salt: u.salt, iterations: u.iterations, role: u.role || 'crew', source: 'kv' };
-      } catch (e) {}
-    }
   }
   return null;
 }
@@ -355,6 +359,34 @@ async function handleLogin(req, env) {
   const exp = Date.now() + SESSION_HOURS * 3600 * 1000;
   const token = await signJwt({ sub: email, email, role: user.role, exp }, env.JWT_SECRET);
   return json({ token, email, username: email, role: user.role, expiresAt: exp }, {}, env, req);
+}
+
+// Changes the signed-in user's password. The new hash is written to KV, which
+// lookupUser checks before USERS — so this works for env-var users too.
+async function handleChangePassword(req, env) {
+  const session = await requireAuth(req, env);
+  if (!session || !session.email) return json({ error: 'Unauthorized' }, { status: 401 }, env, req);
+  if (!env.AUTH_KV) return json({ error: 'Password changes require AUTH_KV KV namespace binding' }, { status: 503 }, env, req);
+  let body;
+  try { body = await req.json(); }
+  catch (e) { return json({ error: 'Invalid JSON' }, { status: 400 }, env, req); }
+  const { currentPassword, newPassword } = body || {};
+  if (!currentPassword || !newPassword) {
+    return json({ error: 'currentPassword and newPassword required' }, { status: 400 }, env, req);
+  }
+  if (newPassword.length < 8) {
+    return json({ error: 'New password must be at least 8 characters' }, { status: 400 }, env, req);
+  }
+  const user = await lookupUser(env, session.email);
+  if (!user) return json({ error: 'Account not found' }, { status: 404 }, env, req);
+  const ok = await verifyPassword(currentPassword, user.hash, user.salt, user.iterations);
+  if (!ok) return json({ error: 'Current password is incorrect' }, { status: 401 }, env, req);
+  const { hash, salt, iterations } = await hashPassword(newPassword);
+  await env.AUTH_KV.put('user:' + session.email, JSON.stringify({
+    email: session.email, hash, salt, iterations,
+    role: user.role || 'crew', updatedAt: new Date().toISOString()
+  }));
+  return json({ ok: true }, {}, env, req);
 }
 
 async function handleCommit(req, env) {
@@ -860,6 +892,7 @@ export default {
     if (request.method === 'GET'  && path === '/health')          return json({ ok: true, kv: !!env.AUTH_KV }, {}, env, request);
     if (request.method === 'POST' && path === '/login')           return handleLogin(request, env);
     if (request.method === 'POST' && path === '/accept-invite')   return handleAcceptInvite(request, env);
+    if (request.method === 'POST' && path === '/change-password') return handleChangePassword(request, env);
     if (request.method === 'GET'  && path === '/invite-info')     return handleInviteInfo(request, env);
     if (request.method === 'POST' && path === '/commit')          return handleCommit(request, env);
     if (request.method === 'GET'  && path === '/get')             return handleGet(request, env);
