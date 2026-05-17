@@ -40,7 +40,9 @@
   .chart-svg .axis line { stroke: var(--border); stroke-width: 1; }
   .chart-svg .grid line { stroke: var(--border); stroke-width: 1; stroke-dasharray: 2 4; opacity: 0.6; }
   .chart-svg .data-line { fill: none; stroke-width: 2; }
+  .chart-svg .data-line.projection { stroke-dasharray: 7 5; opacity: 0.55; }
   .chart-svg .data-dot  { stroke-width: 0; }
+  .chart-svg .projection-dot { opacity: 0.85; }
   .chart-svg .target { stroke: var(--yellow); stroke-width: 1; stroke-dasharray: 4 4; fill: none; }
   .chart-svg .target-label { fill: var(--yellow); font-size: 10px; }
   .chart-svg .cutoff { stroke: var(--red); stroke-width: 1; stroke-dasharray: 4 4; fill: none; }
@@ -109,8 +111,8 @@
     const padL = 56, padR = 16, padT = 16, padB = 32;
     const innerW = W - padL - padR, innerH = H - padT - padB;
 
-    const allX = series.flatMap(s => s.points.map(p => p.x));
-    const allY = series.flatMap(s => s.points.map(p => p.y));
+    const allX = series.flatMap(s => [...s.points, ...(s.projection || [])].map(p => p.x));
+    const allY = series.flatMap(s => [...s.points, ...(s.projection || [])].map(p => p.y));
     if (opts.target != null) allY.push(opts.target);
     const xMin = opts.xMin != null ? opts.xMin : Math.min(...allX, 0);
     const xMax = opts.xMax != null ? opts.xMax : Math.max(...allX, 1);
@@ -148,6 +150,13 @@
     for (const s of series) {
       const d = linePath(s.points, xScale, yScale);
       lines += `<path class="data-line" d="${d}" stroke="${s.color}"/>`;
+      // Optional dashed projection (e.g. tracking-to-finish line).
+      if (s.projection && s.projection.length >= 2) {
+        const pd = linePath(s.projection, xScale, yScale);
+        lines += `<path class="data-line projection" d="${pd}" stroke="${s.color}"/>`;
+        const end = s.projection[s.projection.length - 1];
+        lines += `<circle class="data-dot projection-dot" cx="${xScale(end.x).toFixed(1)}" cy="${yScale(end.y).toFixed(1)}" r="4" fill="${s.color}"/>`;
+      }
       if (opts.dots !== false) {
         for (const p of s.points) {
           lines += `<circle class="data-dot" cx="${xScale(p.x).toFixed(1)}" cy="${yScale(p.y).toFixed(1)}" r="3" fill="${s.color}"/>`;
@@ -300,7 +309,7 @@
         <div class="chart-head">
           <div>
             <div class="chart-title">Cumulative progress</div>
-            <div class="chart-sub">Miles covered over race time; cutoff line shown</div>
+            <div class="chart-sub">Miles covered over race time; dashed = projected finish, cutoff line shown</div>
           </div>
           <div class="chart-legend">${legendHtml}</div>
         </div>
@@ -404,14 +413,33 @@
         }
       }
       const pred = Race.compute.predictedMileage(r, cfg);
-      if (pred.state === 'on-course' || pred.state === 'in-pit') {
+      const onCourse = pred.state === 'on-course' || pred.state === 'in-pit';
+      if (onCourse) {
         pts.push({ x: (Date.now() - start) / 3600000, y: pred.courseMi });
       }
-      return { name: r.name, color: r.color || 'var(--accent)', points: pts };
+      // Predicted finish: dashed line from the runner's current position to
+      // where their average pace projects them crossing the finish.
+      let projection = null;
+      const c = Race.compute.runner(r, cfg);
+      if (onCourse && c.projectedFinishSec && sorted.length) {
+        const firstLeg = sorted.find(l => l.startTime);
+        if (firstLeg) {
+          const runnerStartX = (new Date(firstLeg.startTime) - start) / 3600000;
+          const finishX = runnerStartX + c.projectedFinishSec / 3600;
+          const here = pts[pts.length - 1];
+          if (finishX > here.x) {
+            projection = [here, { x: finishX, y: totalDist }];
+          }
+        }
+      }
+      return { name: r.name, color: r.color || 'var(--accent)', points: pts, projection };
     });
-    // Span the x-axis to at least the cutoff, extending if data runs longer.
+    // Span the x-axis to at least the cutoff, extending for data or projections.
     let cumMaxX = cutoffHours || 24;
-    cumSeries.forEach(s => s.points.forEach(p => { if (p.x > cumMaxX) cumMaxX = p.x; }));
+    cumSeries.forEach(s => {
+      s.points.forEach(p => { if (p.x > cumMaxX) cumMaxX = p.x; });
+      (s.projection || []).forEach(p => { if (p.x > cumMaxX) cumMaxX = p.x; });
+    });
     makeLineChart('chart-cum', cumSeries, {
       height: 360,
       xMin: 0, xMax: cumMaxX,
