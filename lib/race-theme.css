@@ -5,8 +5,8 @@
   --border: #262932;
   --border-bright: #353946;
   --text: #e8e6e1;
-  --text-dim: #8a8a8a;
-  --text-muted: #5a5a60;
+  --text-dim: #b4b4b6;
+  --text-muted: #909098;
   --accent: #ff6b3d;
   --accent-glow: rgba(255, 107, 61, 0.18);
   --green: #6ee7a8;
@@ -64,10 +64,13 @@ h1.site em { font-style: italic; color: var(--accent); font-weight: 600; }
 a.nav-link {
   font-family: 'JetBrains Mono', monospace; font-size: 11px;
   letter-spacing: 0.15em; text-transform: uppercase;
-  color: var(--text-dim); text-decoration: none;
-  border: 1px solid var(--border); padding: 8px 12px; border-radius: 4px;
+  color: var(--text); text-decoration: none;
+  border: 1px solid var(--border-bright); padding: 8px 12px; border-radius: 4px;
+  background: var(--bg-elevated);
 }
-a.nav-link:hover, a.nav-link:active { color: var(--accent); border-color: var(--accent); }
+a.nav-link:hover, a.nav-link:active {
+  color: var(--accent); border-color: var(--accent); background: var(--accent-glow);
+}
 
 .btn {
   font-family: 'JetBrains Mono', monospace; font-size: 11px;
