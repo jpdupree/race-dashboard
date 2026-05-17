@@ -409,9 +409,10 @@
     font-family: 'JetBrains Mono', monospace; font-size: 9px;
     fill: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase;
   }
-  .course-elev .elev-aid-label {
-    font-family: 'JetBrains Mono', monospace; font-size: 11px;
-    fill: var(--text-muted);
+  .course-elev .elev-aid-dot { cursor: pointer; }
+  .course-elev .elev-popup-bg { fill: rgba(12, 13, 16, 0.94); stroke: var(--border-bright); }
+  .course-elev .elev-popup-text {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; fill: var(--text);
   }
   .course-elev .elev-runner-label {
     font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
@@ -997,7 +998,7 @@
   // A trailing <g id="elev-runners"> is left empty for updateTracking().
   function renderElevationProfile(pts, aids) {
     const svg = document.getElementById('course-elev');
-    const W = 1000, H = 200, padL = 48, padR = 8, padT = 30, padB = 14;
+    const W = 1000, H = 200, padL = 48, padR = 8, padT = 20, padB = 14;
     const plotW = W - padL - padR, plotH = H - padT - padB;
     const totalMi = pts[pts.length - 1].dist || 1;
     let minE = Infinity, maxE = -Infinity;
@@ -1026,6 +1027,7 @@
     const linePath = 'M' + linePts.join(' L');
     const areaPath = `M${x(0).toFixed(1)},${baseY.toFixed(1)} L${linePts.join(' L')} L${x(totalMi).toFixed(1)},${baseY.toFixed(1)} Z`;
 
+    // Aid markers — a dot per aid; the name shows on hover (<title>) or tap.
     const marks = aids.map((aid, i) => {
       const ax = x(aid.mileage);
       const pt = nearestGpxPoint(pts, aid.mileage);
@@ -1033,15 +1035,14 @@
       const isEnd = i === 0 || i === aids.length - 1;
       const color = isEnd ? AID_END_COLOR : AID_MID_COLOR;
       const ft = Math.round(Race.gpx.metersToFeet(pt.ele));
-      // Stagger labels on two rows to reduce overlap on aid-dense courses.
-      const labelY = (i % 2 === 0) ? 12 : 24;
+      const label = `${aid.name} · ${aid.mileage.toFixed(1)} mi`;
       return `
         <line class="elev-aid-line" x1="${ax.toFixed(1)}" y1="${padT}" x2="${ax.toFixed(1)}" y2="${baseY.toFixed(1)}"
               stroke="${color}" stroke-opacity="0.3" />
-        <circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="4" fill="${color}" stroke="#0c0d10" stroke-width="1.5">
-          <title>${escapeHtml(aid.name)} · ${aid.mileage.toFixed(1)} mi · ${ft.toLocaleString()} ft</title>
-        </circle>
-        <text class="elev-aid-label" x="${ax.toFixed(1)}" y="${labelY}" text-anchor="middle">${escapeHtml(aid.name)}</text>`;
+        <circle class="elev-aid-dot" cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="5"
+                fill="${color}" stroke="#0c0d10" stroke-width="1.5" data-label="${escapeHtml(label)}">
+          <title>${escapeHtml(label)} · ${ft.toLocaleString()} ft</title>
+        </circle>`;
     }).join('');
 
     svg.innerHTML = `
@@ -1049,7 +1050,25 @@
       <path class="elev-area" d="${areaPath}" />
       <path class="elev-line" d="${linePath}" />
       ${marks}
+      <g id="elev-aid-popup"></g>
       <g id="elev-runners"></g>`;
+
+    // Tap an aid dot to show its name (in addition to the hover <title>).
+    const popup = svg.querySelector('#elev-aid-popup');
+    svg.addEventListener('click', (e) => {
+      const dot = e.target.closest('.elev-aid-dot');
+      if (!dot) { popup.innerHTML = ''; return; }
+      const text = dot.getAttribute('data-label') || '';
+      const cx = parseFloat(dot.getAttribute('cx'));
+      const cy = parseFloat(dot.getAttribute('cy'));
+      const h = 19, w = text.length * 6.3 + 16;
+      let bx = Math.max(padL, Math.min(cx - w / 2, W - padR - w));
+      let by = cy - h - 9;
+      if (by < padT) by = cy + 9;
+      popup.innerHTML =
+        `<rect class="elev-popup-bg" x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${w.toFixed(1)}" height="${h}" rx="3" />` +
+        `<text class="elev-popup-text" x="${(bx + w / 2).toFixed(1)}" y="${(by + h / 2 + 0.5).toFixed(1)}" text-anchor="middle" dominant-baseline="middle">${escapeHtml(text)}</text>`;
+    });
   }
 
   // ---------- predictive runner tracking ----------
