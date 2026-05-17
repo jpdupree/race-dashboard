@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="lib/race-theme.css?v=8">
+<link rel="stylesheet" href="lib/race-theme.css?v=9">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
   .cutoffs {
@@ -485,7 +485,7 @@
 </footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="lib/race-core.js?v=8"></script>
+<script src="lib/race-core.js?v=9"></script>
 <script>
   const REFRESH_MS = 15000;
   const slug = Race.qs('id');
@@ -1081,7 +1081,9 @@
 
   function trackingLabel(pos) {
     if (pos.state === 'finished') return 'finished';
-    if (pos.state === 'in-pit') return `in pit · ${pos.courseMi.toFixed(1)} mi`;
+    if (pos.state === 'in-pit') {
+      return pos.atAid ? `in pit at ${pos.atAid}` : `in pit · ${pos.courseMi.toFixed(1)} mi`;
+    }
     return `~${pos.courseMi.toFixed(1)} mi (est)`;
   }
 
