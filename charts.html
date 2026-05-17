@@ -400,16 +400,21 @@
     // Cumulative progress: x = race elapsed hours; y = miles done.
     // The final point is the runner's predicted position right now, so the
     // line reaches the present even when the current leg is unfinished.
+    const raceStartMs = new Date(cfg.startTime).getTime();
+    const cutoffWindowX = (raceStartMs - start.getTime()) / 3600000 + (cutoffHours || 24);
+
     const cumSeries = runners.map(r => {
       const sorted = (r.legs || []).slice().sort((a, b) => a.index - b.index);
       const pts = [{ x: 0, y: 0 }];
+      const completed = [];   // one {x,y} per completed leg, for the pace basis
       let miles = 0;
       for (const l of sorted) {
         if (l.endTime) {
           const def = Race.course.legAt(cfg, l.index);
           miles += def?.distanceMi || 0;
-          const elapsedH = (new Date(l.endTime) - start) / 3600000;
-          pts.push({ x: elapsedH, y: miles });
+          const p = { x: (new Date(l.endTime) - start) / 3600000, y: miles };
+          pts.push(p);
+          completed.push(p);
         }
       }
       const pred = Race.compute.predictedMileage(r, cfg);
@@ -417,29 +422,43 @@
       if (onCourse) {
         pts.push({ x: (Date.now() - start) / 3600000, y: pred.courseMi });
       }
-      // Predicted finish: dashed line from the runner's current position to
-      // where their average pace projects them crossing the finish.
-      let projection = null;
-      const c = Race.compute.runner(r, cfg);
-      if (onCourse && c.projectedFinishSec && sorted.length) {
-        const firstLeg = sorted.find(l => l.startTime);
-        if (firstLeg) {
-          const runnerStartX = (new Date(firstLeg.startTime) - start) / 3600000;
-          const finishX = runnerStartX + c.projectedFinishSec / 3600;
-          const here = pts[pts.length - 1];
-          if (finishX > here.x) {
-            projection = [here, { x: finishX, y: totalDist }];
-          }
-        }
-      }
-      return { name: r.name, color: r.color || 'var(--accent)', points: pts, projection };
+      const firstLeg = sorted.find(l => l.startTime);
+      const runnerStartX = firstLeg ? (new Date(firstLeg.startTime) - start) / 3600000 : 0;
+      return {
+        name: r.name, color: r.color || 'var(--accent)', points: pts,
+        _completed: completed, _onCourse: onCourse, _runnerStartX: runnerStartX
+      };
     });
-    // Span the x-axis to at least the cutoff, extending for data or projections.
-    let cumMaxX = cutoffHours || 24;
+
+    // Chart x-axis: the cutoff window, extended only to fit real data points
+    // — never the projection, which is clipped to this fixed maximum.
+    let cumMaxX = cutoffWindowX;
+    cumSeries.forEach(s => s.points.forEach(p => { if (p.x > cumMaxX) cumMaxX = p.x; }));
+
+    // Predicted-finish ray: extend each runner's recent pace (last 3 completed
+    // legs, else whole race) from their current point. Clipped to the chart
+    // bounds — a runner who won't finish in the window ends below the goal
+    // line instead of faking a hit at the top-right.
     cumSeries.forEach(s => {
-      s.points.forEach(p => { if (p.x > cumMaxX) cumMaxX = p.x; });
-      (s.projection || []).forEach(p => { if (p.x > cumMaxX) cumMaxX = p.x; });
+      const cp = s._completed;
+      if (!s._onCourse || !cp.length) return;
+      const here = s.points[s.points.length - 1];
+      if (here.y <= 0 || here.y >= totalDist || here.x >= cumMaxX) return;
+      const last = cp[cp.length - 1];
+      const anchor = cp.length >= 4 ? cp[cp.length - 4] : { x: s._runnerStartX, y: 0 };
+      const dt = last.x - anchor.x, dm = last.y - anchor.y;
+      if (dt <= 0 || dm <= 0) return;
+      const mph = dm / dt;
+      const goalH = here.x + (totalDist - here.y) / mph;
+      let endH, endMiles;
+      if (goalH <= cumMaxX) {
+        endH = goalH; endMiles = totalDist;
+      } else {
+        endH = cumMaxX; endMiles = here.y + (cumMaxX - here.x) * mph;
+      }
+      if (endH > here.x) s.projection = [{ x: here.x, y: here.y }, { x: endH, y: endMiles }];
     });
+
     makeLineChart('chart-cum', cumSeries, {
       height: 360,
       xMin: 0, xMax: cumMaxX,
