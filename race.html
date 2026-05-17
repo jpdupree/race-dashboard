@@ -400,6 +400,15 @@
   .course-elev .elev-area { fill: rgba(255, 107, 61, 0.16); stroke: none; }
   .course-elev .elev-line { fill: none; stroke: #ff6b3d; stroke-width: 1.6; }
   .course-elev .elev-aid-line { stroke-dasharray: 3 3; }
+  .course-elev .elev-grid { stroke: var(--border); stroke-width: 1; }
+  .course-elev .elev-axis-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    fill: var(--text-muted);
+  }
+  .course-elev .elev-axis-unit {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    fill: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase;
+  }
   .course-elev .elev-aid-label {
     font-family: 'JetBrains Mono', monospace; font-size: 11px;
     fill: var(--text-muted);
@@ -988,7 +997,7 @@
   // A trailing <g id="elev-runners"> is left empty for updateTracking().
   function renderElevationProfile(pts, aids) {
     const svg = document.getElementById('course-elev');
-    const W = 1000, H = 200, padL = 8, padR = 8, padT = 30, padB = 14;
+    const W = 1000, H = 200, padL = 48, padR = 8, padT = 30, padB = 14;
     const plotW = W - padL - padR, plotH = H - padT - padB;
     const totalMi = pts[pts.length - 1].dist || 1;
     let minE = Infinity, maxE = -Infinity;
@@ -1001,6 +1010,17 @@
     const y = ele => padT + (1 - (ele - minE) / (maxE - minE)) * plotH;
     const baseY = padT + plotH;
     elevX = x; elevY = y;
+
+    // Elevation scale — gridlines + feet labels down the left edge.
+    let scale = `<text class="elev-axis-unit" x="${padL - 6}" y="11" text-anchor="end">ft</text>`;
+    const yTicks = 4;
+    for (let i = 0; i <= yTicks; i++) {
+      const ele = minE + (i / yTicks) * (maxE - minE);
+      const yy = y(ele).toFixed(1);
+      const ft = Math.round(Race.gpx.metersToFeet(ele));
+      scale += `<line class="elev-grid" x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" />` +
+        `<text class="elev-axis-label" x="${padL - 6}" y="${yy}" text-anchor="end" dominant-baseline="middle">${ft.toLocaleString()}</text>`;
+    }
 
     const linePts = pts.map(p => `${x(p.dist).toFixed(1)},${y(p.ele).toFixed(1)}`);
     const linePath = 'M' + linePts.join(' L');
@@ -1025,6 +1045,7 @@
     }).join('');
 
     svg.innerHTML = `
+      ${scale}
       <path class="elev-area" d="${areaPath}" />
       <path class="elev-line" d="${linePath}" />
       ${marks}
