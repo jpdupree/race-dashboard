@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="lib/race-theme.css?v=7">
+<link rel="stylesheet" href="lib/race-theme.css?v=8">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
   .cutoffs {
@@ -213,9 +213,13 @@
     padding: 14px 2px 6px;
     cursor: pointer; user-select: none;
   }
-  .leglog-head:hover .leglog-toggle { color: var(--accent); }
+  .leglog-head:hover .leglog-toggle { color: var(--accent); border-color: var(--accent); }
   .leglog-head-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); font-weight: 600; }
-  .leglog-toggle { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-muted); }
+  .leglog-toggle {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim);
+    border: 1px solid var(--border-bright); border-radius: 3px; padding: 4px 9px;
+  }
   .leglog-toggle::before { content: '▼ '; }
   .leglog.collapsed .leglog-toggle::before { content: '▶ '; }
   .leglog.collapsed tr.leg-old, .leglog.collapsed tr.note-old { display: none; }
@@ -265,7 +269,12 @@
     font-family: 'JetBrains Mono', monospace; font-size: 11px;
     letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-muted);
   }
-  .access-head-toggle { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-muted); }
+  .access-head-toggle {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim);
+    border: 1px solid var(--border-bright); border-radius: 3px; padding: 4px 9px;
+  }
+  .access-head:hover .access-head-toggle { color: var(--accent); border-color: var(--accent); }
   .access:not(.open) .access-head-toggle::before { content: '▶ '; }
   .access.open .access-head-toggle::before { content: '▼ '; }
   .access-body { padding: 18px 22px 22px; }
@@ -466,7 +475,7 @@
 </footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="lib/race-core.js?v=7"></script>
+<script src="lib/race-core.js?v=8"></script>
 <script>
   const REFRESH_MS = 15000;
   const slug = Race.qs('id');
