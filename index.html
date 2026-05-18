@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="lib/race-theme.css?v=14">
+<link rel="stylesheet" href="lib/race-theme.css?v=15">
 <style>
   .cards {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -144,7 +144,7 @@
   <div id="repo-link">—</div>
 </footer>
 
-<script src="lib/race-core.js?v=14"></script>
+<script src="lib/race-core.js?v=15"></script>
 <script>
   const SORT_KEY = 'race-hub-sort-v1';
   let loadedRaces = [];
@@ -228,7 +228,7 @@
     const startDate = r.startTime
       ? new Date(r.startTime).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' })
       : '—';
-    const dist = r.totalDistanceMi != null ? `${r.totalDistanceMi} mi` : '—';
+    const dist = r.totalDistanceMi != null ? Race.units.distance(r.totalDistanceMi, { units: r.units }) : '—';
     let badge = '';
     if (r.visibility === 'private') {
       const cls = r.role === 'viewer' ? 'viewer' : '';

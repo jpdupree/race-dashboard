@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="lib/race-theme.css?v=14">
+<link rel="stylesheet" href="lib/race-theme.css?v=15">
 <style>
   /* Screen styles (reuse dashboard) */
   .controls {
@@ -261,7 +261,7 @@
   <div>Auto-generated · race-dashboard hub</div>
 </footer>
 
-<script src="lib/race-core.js?v=14"></script>
+<script src="lib/race-core.js?v=15"></script>
 <script>
   const slug = Race.qs('id');
   if (!slug) { window.location = 'index.html'; }
@@ -333,15 +333,15 @@
             <div class="runner-bib">${escapeHtml(runner.bib || '')}</div>
           </div>
           <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.15em;">
-            ${c.legsDone}/${c.totalLegs} ${cfg.courseType === 'loops' && !(cfg.course.loopSegments || []).length ? 'laps' : 'legs'} · ${c.milesDone.toFixed(1)} mi
+            ${c.legsDone}/${c.totalLegs} ${cfg.courseType === 'loops' && !(cfg.course.loopSegments || []).length ? 'laps' : 'legs'} · ${Race.units.distance(c.milesDone, cfg)}
           </div>
         </div>
         <div class="summary-grid">
           <div class="summary-stat"><span class="l">Race Time</span><span class="v">${Race.fmt.duration(c.raceSec)}</span><span class="s">of ${Race.fmt.hoursToHm(cfg.cutoffs?.totalHours)}</span></div>
           <div class="summary-stat"><span class="l">Course</span><span class="v">${Race.fmt.duration(c.completedCourseSec)}</span><span class="s">avg leg ${Race.fmt.duration(c.avgLegSec)}</span></div>
           <div class="summary-stat"><span class="l">Pit / Aid</span><span class="v">${Race.fmt.duration(c.completedPitSec)}</span><span class="s">avg ${Race.fmt.duration(c.avgPitSec)}</span></div>
-          <div class="summary-stat"><span class="l">Elevation</span><span class="v">${c.elevGainFt != null ? '+' + c.elevGainFt.toLocaleString() + ' ft' : '—'}</span><span class="s">${c.elevGainFt != null ? '−' + (c.elevLossFt || 0).toLocaleString() + ' ft · est.' : 'no profile'}</span></div>
-          <div class="summary-stat"><span class="l">Pace</span><span class="v">${Race.fmt.pace(c.paceSecPerMile)}</span><span class="s">${c.totalCal.toLocaleString()} cal · ${c.totalFluid} oz · ${(c.totalSodium/1000).toFixed(1)} g Na</span></div>
+          <div class="summary-stat"><span class="l">Elevation</span><span class="v">${c.elevGainFt != null ? '+' + Math.round(Race.units.elevationVal(c.elevGainFt, cfg)).toLocaleString() + ' ' + Race.units.elevationLabel(cfg) : '—'}</span><span class="s">${c.elevGainFt != null ? '−' + Math.round(Race.units.elevationVal(c.elevLossFt || 0, cfg)).toLocaleString() + ' ' + Race.units.elevationLabel(cfg) + ' · est.' : 'no profile'}</span></div>
+          <div class="summary-stat"><span class="l">Pace</span><span class="v">${Race.units.pace(c.paceSecPerMile, cfg)}</span><span class="s">${c.totalCal.toLocaleString()} cal · ${c.totalFluid} oz · ${(c.totalSodium/1000).toFixed(1)} g Na</span></div>
         </div>
         <table class="legs">
           <thead>
@@ -368,9 +368,9 @@
     const total = Race.gpx.totalDistanceMi(gpxPts);
     const elev = Race.gpx.totalElevation(gpxPts);
     document.getElementById('course-stats').innerHTML = `
-      <div><strong>${total.toFixed(1)} mi</strong> <span>total</span></div>
-      <div><strong>+${elev.gainFt.toLocaleString()} ft</strong> <span>gain</span></div>
-      <div><strong>-${elev.lossFt.toLocaleString()} ft</strong> <span>loss</span></div>
+      <div><strong>${Race.units.distance(total, cfg)}</strong> <span>total</span></div>
+      <div><strong>+${Math.round(Race.units.elevationVal(elev.gainFt, cfg)).toLocaleString()} ${Race.units.elevationLabel(cfg)}</strong> <span>gain</span></div>
+      <div><strong>-${Math.round(Race.units.elevationVal(elev.lossFt, cfg)).toLocaleString()} ${Race.units.elevationLabel(cfg)}</strong> <span>loss</span></div>
       <div><strong>${cfg.courseType === 'loops'
         ? cfg.course.loopCount + ' × loop' + ((cfg.course.loopSegments || []).length ? ` · ${cfg.course.loopSegments.length} aid seg` : '')
         : (cfg.course.segments?.length || 0) + ' segments'}</strong></div>

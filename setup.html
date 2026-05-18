@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="lib/race-theme.css?v=14">
+<link rel="stylesheet" href="lib/race-theme.css?v=15">
 <style>
   .wrap { max-width: 860px; margin: 0 auto; }
   .section {
@@ -278,6 +278,23 @@
         <span class="hint">Loops only — when the runner must start the final lap.</span>
       </label>
     </div>
+    <div class="grid-2">
+      <label class="field">
+        <span class="lbl">Distance unit</span>
+        <select id="unit-distance">
+          <option value="mi">Miles</option>
+          <option value="km">Kilometers</option>
+        </select>
+      </label>
+      <label class="field">
+        <span class="lbl">Elevation unit</span>
+        <select id="unit-elevation">
+          <option value="ft">Feet</option>
+          <option value="m">Meters</option>
+        </select>
+        <span class="hint">Aid mileages below are entered in the chosen distance unit.</span>
+      </label>
+    </div>
   </section>
 
   <!-- Course type -->
@@ -308,12 +325,12 @@
           <input type="number" id="loop-count" min="1" step="1" value="10" />
         </label>
         <label class="field">
-          <span class="lbl">Distance per loop (mi)</span>
+          <span class="lbl">Distance per loop (<span class="unit-d">mi</span>)</span>
           <input type="number" id="loop-distance" min="0" step="0.1" value="10" />
           <span class="hint">Used only when no loop aid stations are listed.</span>
         </label>
         <label class="field">
-          <span class="lbl">Elevation gain per loop (ft, optional)</span>
+          <span class="lbl">Elevation gain per loop (<span class="unit-e">ft</span>, optional)</span>
           <input type="number" id="loop-gain" min="0" step="1" />
           <span class="hint">Used only when no loop aid stations are listed.</span>
         </label>
@@ -326,7 +343,7 @@
             <tr>
               <th>#</th>
               <th>Name</th>
-              <th>Lap mile</th>
+              <th>Lap <span class="unit-d">mi</span></th>
               <th></th>
             </tr>
           </thead>
@@ -350,7 +367,7 @@
           <tr>
             <th>#</th>
             <th>Name</th>
-            <th>Cumulative mile</th>
+            <th>Cumulative <span class="unit-d">mi</span></th>
             <th>Arrive cutoff (hrs, optional)</th>
             <th></th>
           </tr>
@@ -421,7 +438,7 @@
 
 </div>
 
-<script src="lib/race-core.js?v=14"></script>
+<script src="lib/race-core.js?v=15"></script>
 <script>
   const DEFAULT_COLORS = ['#c44a18', '#1f5e8a', '#3a8a3a', '#8a3a5e', '#8a5e3a', '#5e3a8a'];
 
@@ -429,6 +446,7 @@
   const state = {
     courseType: 'segments',
     visibility: 'public',
+    units: { distance: 'mi', elevation: 'ft' },
     aidStations: [
       { name: 'Start', mileage: 0, arriveCutoffHours: '' },
       { name: 'Finish', mileage: '', arriveCutoffHours: '' }
@@ -595,7 +613,13 @@
     const total = last ? last.mileage : 0;
     document.getElementById('aid-summary').innerHTML =
       n < 2 ? `Need at least 2 aid stations.`
-        : `<strong>${n - 1}</strong> segments · <strong>${(+total).toFixed(1)} mi</strong> total`;
+        : `<strong>${n - 1}</strong> segments · <strong>${(+total).toFixed(1)} ${state.units.distance}</strong> total`;
+  }
+
+  // Reflects the chosen units in every table header / field label.
+  function renderUnitLabels() {
+    document.querySelectorAll('.unit-d').forEach(e => e.textContent = state.units.distance);
+    document.querySelectorAll('.unit-e').forEach(e => e.textContent = state.units.elevation);
   }
 
   // ---------- loop aid stations ----------
@@ -619,7 +643,7 @@
       el.innerHTML = 'Optional — add aid stations to time a split at each, every lap. Empty = simple lap-only loop.';
     } else {
       const total = +aids[aids.length - 1].mileage;
-      el.innerHTML = `<strong>${aids.length - 1}</strong> segments per lap · <strong>${total.toFixed(1)} mi</strong> per lap`;
+      el.innerHTML = `<strong>${aids.length - 1}</strong> segments per lap · <strong>${total.toFixed(1)} ${state.units.distance}</strong> per lap`;
     }
   }
 
@@ -718,6 +742,7 @@
     const cfg = {
       name, location, startTime,
       courseType: state.courseType,
+      units: { distance: state.units.distance, elevation: state.units.elevation },
       visibility: proxy ? state.visibility : 'public',
       createdBy: me || null,
       editors: me ? [me] : [],
@@ -741,12 +766,12 @@
     if (!isNaN(lastLegStartHours)) cfg.cutoffs.lastLegStartHours = lastLegStartHours;
 
     if (state.courseType === 'loops') {
-      const loopGain = parseFloat(document.getElementById('loop-gain').value);
+      const loopGainFt = Race.units.toFeet(document.getElementById('loop-gain').value, { units: state.units });
       cfg.course = {
         loopCount: parseInt(document.getElementById('loop-count').value, 10) || 0
       };
       const loopAids = state.loopAidStations
-        .map(a => ({ ...a, mileage: a.mileage === '' ? null : parseFloat(a.mileage) }))
+        .map(a => ({ ...a, mileage: a.mileage === '' ? null : Race.units.toMiles(a.mileage, { units: state.units }) }))
         .filter(a => a.name && a.mileage != null && !isNaN(a.mileage));
       if (loopAids.length >= 2) {
         // Loop with timed checkpoints — store one lap's segments.
@@ -754,12 +779,12 @@
         cfg.course.loopDistanceMi = +loopAids[loopAids.length - 1].mileage;
       } else {
         // Simple lap-only loop.
-        cfg.course.loopDistanceMi = parseFloat(document.getElementById('loop-distance').value) || 0;
-        if (!isNaN(loopGain)) cfg.course.loopElevationGainFt = loopGain;
+        cfg.course.loopDistanceMi = Race.units.toMiles(document.getElementById('loop-distance').value, { units: state.units }) || 0;
+        if (loopGainFt != null) cfg.course.loopElevationGainFt = loopGainFt;
       }
     } else {
       const aids = state.aidStations
-        .map(a => ({ ...a, mileage: a.mileage === '' ? null : parseFloat(a.mileage), arriveCutoffHours: a.arriveCutoffHours === '' ? null : parseFloat(a.arriveCutoffHours) }))
+        .map(a => ({ ...a, mileage: a.mileage === '' ? null : Race.units.toMiles(a.mileage, { units: state.units }), arriveCutoffHours: a.arriveCutoffHours === '' ? null : parseFloat(a.arriveCutoffHours) }))
         .filter(a => a.name && a.mileage != null && !isNaN(a.mileage));
       cfg.course = { segments: Race.course.segmentsFromAidStations(aids) };
     }
@@ -780,6 +805,7 @@
       location: cfg.location,
       startTime: cfg.startTime,
       courseType: cfg.courseType,
+      units: cfg.units,
       totalDistanceMi: +Race.course.totalDistanceMi(cfg).toFixed(2),
       runnerNames: cfg.runners.map(r => r.name),
       cutoffHours: cfg.cutoffs.totalHours,
@@ -999,12 +1025,23 @@
       const elev = Race.gpx.totalElevation(pts);
       state.gpxText = text;
       status.style.color = 'var(--green)';
-      status.textContent = `${file.name} · ${pts.length.toLocaleString()} pts · ${dist.toFixed(1)} mi · +${elev.gainFt.toLocaleString()} / -${elev.lossFt.toLocaleString()} ft`;
+      status.textContent = `${file.name} · ${pts.length.toLocaleString()} pts · ${Race.units.distance(dist, { units: state.units })} · +${Math.round(Race.units.elevationVal(elev.gainFt, { units: state.units })).toLocaleString()} / -${Math.round(Race.units.elevationVal(elev.lossFt, { units: state.units })).toLocaleString()} ${Race.units.elevationLabel({ units: state.units })}`;
     } catch (err) {
       state.gpxText = null;
       status.style.color = 'var(--red)';
       status.textContent = `Could not parse GPX: ${err.message}`;
     }
+  });
+
+  document.getElementById('unit-distance').addEventListener('change', (e) => {
+    state.units.distance = e.target.value;
+    renderUnitLabels();
+    renderAidSummary();
+    renderLoopAidSummary();
+  });
+  document.getElementById('unit-elevation').addEventListener('change', (e) => {
+    state.units.elevation = e.target.value;
+    renderUnitLabels();
   });
 
   // ---------- init ----------
@@ -1014,6 +1051,7 @@
     fillGhForm();
     renderGhStatus();
     fillTimeDropdowns();
+    renderUnitLabels();
     renderAidRows();
     renderLoopAidRows();
     renderRunnerRows();

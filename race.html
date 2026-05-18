@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="lib/race-theme.css?v=14">
+<link rel="stylesheet" href="lib/race-theme.css?v=15">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
   .cutoffs {
@@ -485,7 +485,7 @@
 </footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="lib/race-core.js?v=14"></script>
+<script src="lib/race-core.js?v=15"></script>
 <script>
   const REFRESH_MS = 10000;
   const slug = Race.qs('id');
@@ -604,7 +604,7 @@
           <span class="num">${s.index}</span>
           <span class="nm">
             ${escapeHtml(s.name)}
-            <div class="meta">${s.distanceMi.toFixed(1)} mi · ${s.cumulativeMi.toFixed(1)} mi total${s.elevationGainFt != null ? ` · +${s.elevationGainFt}/${-Math.abs(s.elevationLossFt || 0)} ft` : ''}</div>
+            <div class="meta">${Race.units.distance(s.distanceMi, cfg)} · ${Race.units.distance(s.cumulativeMi, cfg)} total${s.elevationGainFt != null ? ` · +${Math.round(Race.units.elevationVal(s.elevationGainFt, cfg))}/-${Math.round(Race.units.elevationVal(Math.abs(s.elevationLossFt || 0), cfg))} ${Race.units.elevationLabel(cfg)}` : ''}</div>
           </span>
           ${durCell}
           <span class="col-cut">${cutoffText}</span>
@@ -698,7 +698,7 @@
           <div class="stat">
             <span class="label">${legUnit}</span>
             <span class="value">${c.legsDone}<span style="color: var(--text-muted); font-size: 14px;">/${c.totalLegs}</span></span>
-            <span class="sub">${c.milesDone.toFixed(1)} / ${totalDist.toFixed(1)} mi</span>
+            <span class="sub">${Race.units.distanceVal(c.milesDone, cfg).toFixed(1)} / ${Race.units.distance(totalDist, cfg)}</span>
           </div>
           <div class="stat">
             <span class="label">Race Time</span>
@@ -717,8 +717,8 @@
           </div>
           <div class="stat">
             <span class="label">Elevation</span>
-            <span class="value">${c.elevGainFt != null ? '+' + c.elevGainFt.toLocaleString() : '—'}</span>
-            <span class="sub">${c.elevGainFt != null ? '−' + (c.elevLossFt || 0).toLocaleString() + ' ft · est.' : 'no profile'}</span>
+            <span class="value">${c.elevGainFt != null ? '+' + Math.round(Race.units.elevationVal(c.elevGainFt, cfg)).toLocaleString() : '—'}</span>
+            <span class="sub">${c.elevGainFt != null ? '−' + Math.round(Race.units.elevationVal(c.elevLossFt || 0, cfg)).toLocaleString() + ' ' + Race.units.elevationLabel(cfg) + ' · est.' : 'no profile'}</span>
           </div>
           ${(() => {
             let liveCls = '', liveValue = '—', liveSub;
@@ -750,8 +750,8 @@
           })()}
           <div class="stat">
             <span class="label">Pace</span>
-            <span class="value">${Race.fmt.pace(c.paceSecPerMile)}</span>
-            <span class="sub">min / mi</span>
+            <span class="value">${Race.units.pace(c.paceSecPerMile, cfg)}</span>
+            <span class="sub">${Race.units.paceLabel(cfg)}</span>
           </div>
           <div class="stat">
             <span class="label">Avg Leg</span>
@@ -951,7 +951,7 @@
     const dist = Race.gpx.totalDistanceMi(pts);
     const elev = Race.gpx.totalElevation(pts);
     document.getElementById('course-map-meta').textContent =
-      `${dist.toFixed(1)} mi · +${elev.gainFt.toLocaleString()} / -${elev.lossFt.toLocaleString()} ft`;
+      `${Race.units.distance(dist, cfg)} · +${Math.round(Race.units.elevationVal(elev.gainFt, cfg)).toLocaleString()} / -${Math.round(Race.units.elevationVal(elev.lossFt, cfg)).toLocaleString()} ${Race.units.elevationLabel(cfg)}`;
 
     // Elevation profile — pure SVG, so it renders even if Leaflet didn't load.
     try { renderElevationProfile(pts, aids); } catch (e) {}
@@ -974,7 +974,7 @@
           radius: isEnd ? 6 : 5, color: '#fff', weight: 2,
           fillColor: isEnd ? AID_END_COLOR : AID_MID_COLOR, fillOpacity: 1
         }).addTo(courseMap).bindTooltip(
-          `${aid.name} · ${aid.mileage.toFixed(1)} mi`,
+          `${aid.name} · ${Race.units.distance(aid.mileage, cfg)}`,
           { className: 'aid-marker-label', direction: 'top' }
         );
       });
@@ -1005,12 +1005,12 @@
     elevX = x; elevY = y;
 
     // Elevation scale — gridlines + feet labels down the left edge.
-    let scale = `<text class="elev-axis-unit" x="${padL - 6}" y="11" text-anchor="end">ft</text>`;
+    let scale = `<text class="elev-axis-unit" x="${padL - 6}" y="11" text-anchor="end">${Race.units.elevationLabel(cfg)}</text>`;
     const yTicks = 4;
     for (let i = 0; i <= yTicks; i++) {
       const ele = minE + (i / yTicks) * (maxE - minE);
       const yy = y(ele).toFixed(1);
-      const ft = Math.round(Race.gpx.metersToFeet(ele));
+      const ft = Math.round(Race.units.elevationVal(Race.gpx.metersToFeet(ele), cfg));
       scale += `<line class="elev-grid" x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" />` +
         `<text class="elev-axis-label" x="${padL - 6}" y="${yy}" text-anchor="end" dominant-baseline="middle">${ft.toLocaleString()}</text>`;
     }
@@ -1026,14 +1026,14 @@
       const ay = y(pt.ele);
       const isEnd = i === 0 || i === aids.length - 1;
       const color = isEnd ? AID_END_COLOR : AID_MID_COLOR;
-      const ft = Math.round(Race.gpx.metersToFeet(pt.ele));
-      const label = `${aid.name} · ${aid.mileage.toFixed(1)} mi`;
+      const ft = Math.round(Race.units.elevationVal(Race.gpx.metersToFeet(pt.ele), cfg));
+      const label = `${aid.name} · ${Race.units.distance(aid.mileage, cfg)}`;
       return `
         <line class="elev-aid-line" x1="${ax.toFixed(1)}" y1="${padT}" x2="${ax.toFixed(1)}" y2="${baseY.toFixed(1)}"
               stroke="${color}" stroke-opacity="0.3" />
         <circle class="elev-aid-dot" cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="5"
                 fill="${color}" stroke="#0c0d10" stroke-width="1.5" data-label="${escapeHtml(label)}">
-          <title>${escapeHtml(label)} · ${ft.toLocaleString()} ft</title>
+          <title>${escapeHtml(label)} · ${ft.toLocaleString()} ${Race.units.elevationLabel(cfg)}</title>
         </circle>`;
     }).join('');
 
@@ -1074,9 +1074,9 @@
   function trackingLabel(pos) {
     if (pos.state === 'finished') return 'finished';
     if (pos.state === 'in-pit') {
-      return pos.atAid ? `in pit at ${pos.atAid}` : `in pit · ${pos.courseMi.toFixed(1)} mi`;
+      return pos.atAid ? `in pit at ${pos.atAid}` : `in pit · ${Race.units.distance(pos.courseMi, cfg)}`;
     }
-    return `~${pos.courseMi.toFixed(1)} mi (est)`;
+    return `~${Race.units.distance(pos.courseMi, cfg)} (est)`;
   }
 
   // Refreshes the predicted runner dots on the map and elevation profile.
@@ -1205,6 +1205,7 @@
     const s = accessState;
     if (!s) return;
     const me = (currentEmail() || '').toLowerCase();
+    const u = Race.units.of(cfg);
     const editors = (s.editors || []);
     const viewers = (s.viewers || []);
     const editorsRow = (em, isCreator) => `
@@ -1265,6 +1266,23 @@
     const body = document.getElementById('access-body');
     body.innerHTML = `
       <div class="access-section">
+        <div class="access-section-title">Display units</div>
+        <div class="access-add">
+          <select id="ax-unit-distance">
+            <option value="mi"${u.distance === 'mi' ? ' selected' : ''}>Miles</option>
+            <option value="km"${u.distance === 'km' ? ' selected' : ''}>Kilometers</option>
+          </select>
+          <select id="ax-unit-elevation">
+            <option value="ft"${u.elevation === 'ft' ? ' selected' : ''}>Feet</option>
+            <option value="m"${u.elevation === 'm' ? ' selected' : ''}>Meters</option>
+          </select>
+          <button class="btn primary" id="ax-units-save">Save units</button>
+        </div>
+        <div class="access-help">Sets how distance, elevation and pace display for everyone viewing this race. Stored data is unchanged.</div>
+        <div id="ax-units-result"></div>
+      </div>
+
+      <div class="access-section">
         <div class="access-section-title">Editors</div>
         <div class="access-list">${editorsHtml}</div>
       </div>
@@ -1315,6 +1333,25 @@
 
   function wireAccessHandlers() {
     const body = document.getElementById('access-body');
+
+    const unitsSave = body.querySelector('#ax-units-save');
+    if (unitsSave) unitsSave.addEventListener('click', async () => {
+      const distance = body.querySelector('#ax-unit-distance').value;
+      const elevation = body.querySelector('#ax-unit-elevation').value;
+      unitsSave.disabled = true; unitsSave.textContent = 'Saving…';
+      try {
+        await Race.gh.mutateJson(Race.auth.cfg(), `races/${slug}/config.json`,
+          (c) => { c.units = { distance, elevation }; return c; },
+          `hub: set display units for ${slug}`);
+        document.getElementById('ax-units-result').innerHTML =
+          '<div style="color: var(--green); font-size: 11px; margin-top: 8px;">Saved — reloading…</div>';
+        setTimeout(() => location.reload(), 700);
+      } catch (err) {
+        document.getElementById('ax-units-result').innerHTML =
+          `<div class="access-err">${escapeHtml(err.message)}</div>`;
+        unitsSave.disabled = false; unitsSave.textContent = 'Save units';
+      }
+    });
 
     body.querySelectorAll('[data-revoke-editor]').forEach(b => {
       b.addEventListener('click', async () => {
