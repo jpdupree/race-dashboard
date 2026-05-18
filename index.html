@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="lib/race-theme.css?v=10">
+<link rel="stylesheet" href="lib/race-theme.css?v=11">
 <style>
   .cards {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -142,24 +142,52 @@
 
 <footer class="site">
   <div id="repo-link">—</div>
-  <div>Templates available · "Use this template" on GitHub</div>
 </footer>
 
-<script src="lib/race-core.js?v=10"></script>
+<script src="lib/race-core.js?v=11"></script>
 <script>
   const SORT_KEY = 'race-hub-sort-v1';
   let loadedRaces = [];
+  // Slugs confirmed complete by checking the race data — a race can finish
+  // before its cutoff time, so the time window alone isn't enough.
+  const completedSlugs = new Set();
 
   // upcoming → not started; live → started, within the cutoff window;
-  // finished → past the cutoff. cutoffHours falls back to 36 for older
-  // manifest entries that predate the field.
+  // finished → past the cutoff, OR every runner has finished. cutoffHours
+  // falls back to 36 for older manifest entries that predate the field.
   function raceStatus(r) {
+    if (completedSlugs.has(r.slug)) return 'finished';
     if (!r.startTime) return 'upcoming';
     const start = new Date(r.startTime).getTime();
     const now = Date.now();
     if (now < start) return 'upcoming';
     const end = start + (r.cutoffHours || 36) * 3600 * 1000;
     return now < end ? 'live' : 'finished';
+  }
+
+  // True when every configured runner has completed the course.
+  function isRaceComplete(cfg, data) {
+    const runners = cfg.runners || [];
+    if (!runners.length) return false;
+    return runners.every(r => {
+      const d = (data.runners || []).find(x => x.id === r.id) || { legs: [] };
+      return Race.compute.nextActionFor(d, cfg).state === 'finished';
+    });
+  }
+
+  // For races still "live" by the clock, check the data — a runner may have
+  // finished early. Flips those cards to "Finished" without a page reload.
+  async function refineStatuses() {
+    const live = loadedRaces.filter(r => raceStatus(r) === 'live');
+    let changed = false;
+    for (const r of live) {
+      try {
+        const cfg = await Race.gh.readRaceJson(r.slug, 'config.json');
+        const data = await Race.gh.readRaceJson(r.slug, 'data.json');
+        if (isRaceComplete(cfg, data)) { completedSlugs.add(r.slug); changed = true; }
+      } catch (e) { /* leave it on the time-based status */ }
+    }
+    if (changed) renderList();
   }
 
   function statusRank(s) {
@@ -305,6 +333,7 @@
         if ([...sel.options].some(o => o.value === saved)) sel.value = saved;
         sel.addEventListener('change', renderList);
         renderList();
+        refineStatuses();
       }
 
       // Repo link for footer

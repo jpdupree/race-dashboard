@@ -7,12 +7,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="lib/race-theme.css?v=10">
+<link rel="stylesheet" href="lib/race-theme.css?v=11">
 <style>
-  .wrap { max-width: 560px; margin: 0 auto; }
+  .wrap { max-width: 620px; margin: 0 auto; }
   .panel {
     background: var(--bg-card); border: 1px solid var(--border);
-    border-radius: 6px; padding: 24px 28px; position: relative;
+    border-radius: 6px; padding: 24px 28px; position: relative; margin-bottom: 20px;
   }
   .panel::before {
     content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
@@ -28,17 +28,68 @@
     border-radius: 6px; padding: 32px; text-align: center; color: var(--text-dim);
     font-family: 'JetBrains Mono', monospace; font-size: 13px;
   }
-  #reset-out { margin-top: 16px; }
   .ok {
     background: rgba(110, 231, 168, 0.08); border: 1px solid rgba(110, 231, 168, 0.4);
-    border-radius: 4px; padding: 14px 16px;
+    border-radius: 4px; padding: 14px 16px; margin-top: 16px;
     font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.5;
   }
   .ok .url { display: block; color: var(--green); word-break: break-all; margin: 8px 0; }
   .err {
     background: rgba(255, 89, 89, 0.06); border: 1px solid rgba(255, 89, 89, 0.4);
-    border-radius: 4px; padding: 12px 14px; font-size: 12px; color: var(--red);
+    border-radius: 4px; padding: 12px 14px; font-size: 12px; color: var(--red); margin-top: 12px;
   }
+
+  /* accounts list */
+  .acct-list { display: flex; flex-direction: column; gap: 6px; }
+  .acct-row {
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: 4px; overflow: hidden;
+  }
+  .acct-head {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    cursor: pointer; user-select: none;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  }
+  .acct-head:hover { background: #1f222a; }
+  .acct-email { flex: 1; color: var(--text); word-break: break-all; }
+  .acct-tag {
+    font-size: 8px; letter-spacing: 0.15em; text-transform: uppercase;
+    padding: 2px 6px; border-radius: 2px; border: 1px solid currentColor;
+    color: var(--text-muted);
+  }
+  .acct-tag.admin { color: var(--accent); border-color: var(--accent); }
+  .acct-caret { color: var(--text-muted); font-size: 10px; }
+  .acct-races {
+    border-top: 1px solid var(--border); padding: 10px 12px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  }
+  .acct-races .race-row {
+    display: flex; justify-content: space-between; gap: 10px; padding: 4px 0;
+  }
+  .acct-races a { color: var(--text-dim); text-decoration: none; word-break: break-all; }
+  .acct-races a:hover { color: var(--accent); }
+  .acct-races .role { color: var(--text-muted); white-space: nowrap; }
+  .acct-races .role.editor { color: var(--accent); }
+  .acct-races .role.viewer { color: var(--blue); }
+  .acct-races .muted { color: var(--text-muted); font-style: italic; }
+  .pending {
+    margin-top: 14px; font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  }
+  .pending-title {
+    font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: 6px;
+  }
+  .pending-row {
+    display: flex; align-items: center; gap: 10px; padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .pending-row .who { flex: 1; color: var(--text-dim); word-break: break-all; }
+  .pending-row button {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-muted); padding: 4px 8px; border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; cursor: pointer;
+  }
+  .pending-row button:hover { color: var(--red); border-color: var(--red); }
 </style>
 </head>
 <body>
@@ -57,26 +108,69 @@
   <div id="error" class="error-banner" style="display:none;"></div>
   <div class="gate" id="gate">Checking…</div>
 
-  <section class="panel" id="reset-panel" style="display:none;">
-    <h2>Reset a user's password</h2>
-    <p class="lead">Generate a one-time reset link for someone who's locked out, then
-      send it to them (Signal, text, email — your call). The link works for 2 days.</p>
-    <label class="field">
-      <span class="lbl">User email</span>
-      <input type="email" id="reset-email" placeholder="crew@example.com" autocomplete="off" spellcheck="false" />
-    </label>
-    <button class="btn primary" type="button" id="reset-gen">Generate reset link</button>
-    <div id="reset-out"></div>
-  </section>
+  <div id="panels" style="display:none;">
+    <section class="panel">
+      <h2>Invite someone to the hub</h2>
+      <p class="lead">Generate a one-time signup link for someone you want to let
+        create their own races. They open it, pick a password, and they're in.
+        The link works for 14 days.</p>
+      <label class="field">
+        <span class="lbl">Their email</span>
+        <input type="email" id="inv-email" placeholder="friend@example.com" autocomplete="off" spellcheck="false" />
+      </label>
+      <button class="btn primary" type="button" id="inv-gen">Generate account invite</button>
+      <div id="inv-out"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Reset a user's password</h2>
+      <p class="lead">Generate a one-time reset link for someone who's locked out,
+        then send it to them. The link works for 2 days.</p>
+      <label class="field">
+        <span class="lbl">User email</span>
+        <input type="email" id="reset-email" placeholder="crew@example.com" autocomplete="off" spellcheck="false" />
+      </label>
+      <button class="btn primary" type="button" id="reset-gen">Generate reset link</button>
+      <div id="reset-out"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Accounts</h2>
+      <p class="lead">Everyone with a hub account. Tap a row to see the races
+        they're an editor or viewer on.</p>
+      <div class="acct-list" id="acct-list">Loading…</div>
+      <div class="pending" id="pending-wrap" style="display:none;">
+        <div class="pending-title">Pending account invites</div>
+        <div id="pending-list"></div>
+      </div>
+    </section>
+  </div>
 </div>
 
-<script src="lib/race-core.js?v=10"></script>
+<script src="lib/race-core.js?v=11"></script>
 <script>
   function esc(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
   }
+  function copyBtn(url) {
+    return '<button class="btn" type="button" data-copy="' + esc(url) + '">Copy link</button>';
+  }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-copy]');
+    if (!b) return;
+    const url = b.dataset.copy;
+    const done = () => { b.textContent = 'Copied ✓'; setTimeout(() => { b.textContent = 'Copy link'; }, 1200); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(done, done);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = url; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch (e2) {}
+      document.body.removeChild(ta); done();
+    }
+  });
 
   (async () => {
     await Race.hub.load();
@@ -95,12 +189,33 @@
       return;
     }
     gate.style.display = 'none';
-    document.getElementById('reset-panel').style.display = '';
+    document.getElementById('panels').style.display = '';
+    document.getElementById('inv-gen').addEventListener('click', genInvite);
+    document.getElementById('inv-email').addEventListener('keydown', (e) => { if (e.key === 'Enter') genInvite(); });
     document.getElementById('reset-gen').addEventListener('click', genReset);
-    document.getElementById('reset-email').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') genReset();
-    });
+    document.getElementById('reset-email').addEventListener('keydown', (e) => { if (e.key === 'Enter') genReset(); });
+    loadAccounts();
   })();
+
+  async function genInvite() {
+    const email = document.getElementById('inv-email').value.trim();
+    const out = document.getElementById('inv-out');
+    if (!email) { out.innerHTML = '<div class="err">Email required.</div>'; return; }
+    const btn = document.getElementById('inv-gen');
+    btn.disabled = true; btn.textContent = 'Generating…';
+    try {
+      const r = await Race.api.accountInvite(email);
+      out.innerHTML = '<div class="ok">Send this signup link to <strong>' + esc(email) +
+        '</strong>. They set a password and can then create their own races. Expires in 14 days.' +
+        '<span class="url">' + esc(r.url) + '</span>' + copyBtn(r.url) + '</div>';
+      document.getElementById('inv-email').value = '';
+      loadAccounts();
+    } catch (err) {
+      out.innerHTML = '<div class="err">' + esc(err.message || 'Could not generate invite.') + '</div>';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Generate account invite';
+    }
+  }
 
   async function genReset() {
     const email = document.getElementById('reset-email').value.trim();
@@ -110,27 +225,81 @@
     btn.disabled = true; btn.textContent = 'Generating…';
     try {
       const r = await Race.api.resetLink(email);
-      out.innerHTML =
-        '<div class="ok">Send this reset link to <strong>' + esc(email) + '</strong>. ' +
-        'They open it and set a new password. Expires in 2 days.' +
-        '<span class="url">' + esc(r.url) + '</span>' +
-        '<button class="btn" type="button" id="reset-copy">Copy link</button></div>';
-      document.getElementById('reset-copy').addEventListener('click', (e) => {
-        const b = e.currentTarget;
-        const done = () => { b.textContent = 'Copied ✓'; setTimeout(() => { b.textContent = 'Copy link'; }, 1200); };
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(r.url).then(done, done);
-        } else {
-          const ta = document.createElement('textarea');
-          ta.value = r.url; document.body.appendChild(ta); ta.select();
-          try { document.execCommand('copy'); } catch (e2) {}
-          document.body.removeChild(ta); done();
-        }
-      });
+      out.innerHTML = '<div class="ok">Send this reset link to <strong>' + esc(email) +
+        '</strong>. They open it and set a new password. Expires in 2 days.' +
+        '<span class="url">' + esc(r.url) + '</span>' + copyBtn(r.url) + '</div>';
     } catch (err) {
       out.innerHTML = '<div class="err">' + esc(err.message || 'Could not generate reset link.') + '</div>';
     } finally {
       btn.disabled = false; btn.textContent = 'Generate reset link';
+    }
+  }
+
+  async function loadAccounts() {
+    const list = document.getElementById('acct-list');
+    try {
+      const r = await Race.api.accounts();
+      const accounts = r.accounts || [];
+      list.innerHTML = accounts.length
+        ? accounts.map(a => `
+            <div class="acct-row" data-email="${esc(a.email)}">
+              <div class="acct-head">
+                <span class="acct-email">${esc(a.email)}</span>
+                <span class="acct-tag ${a.role === 'admin' ? 'admin' : ''}">${esc(a.role)}</span>
+                <span class="acct-caret">&#9654;</span>
+              </div>
+            </div>`).join('')
+        : '<div class="acct-races muted">No accounts yet.</div>';
+
+      list.querySelectorAll('.acct-head').forEach(h => {
+        h.addEventListener('click', () => toggleAccount(h.closest('.acct-row')));
+      });
+
+      const pending = r.pendingInvites || [];
+      const wrap = document.getElementById('pending-wrap');
+      if (pending.length) {
+        wrap.style.display = '';
+        document.getElementById('pending-list').innerHTML = pending.map(p => `
+          <div class="pending-row">
+            <span class="who">${esc(p.email)}</span>
+            <button type="button" data-cancel="${esc(p.token)}">Cancel</button>
+          </div>`).join('');
+        document.getElementById('pending-list').querySelectorAll('[data-cancel]').forEach(b => {
+          b.addEventListener('click', async () => {
+            if (!confirm('Cancel this account invite? The link stops working.')) return;
+            b.disabled = true; b.textContent = '…';
+            try { await Race.api.shareRevoke(b.dataset.cancel); loadAccounts(); }
+            catch (err) { alert('Could not cancel: ' + err.message); b.disabled = false; b.textContent = 'Cancel'; }
+          });
+        });
+      } else {
+        wrap.style.display = 'none';
+      }
+    } catch (err) {
+      list.innerHTML = '<div class="err">' + esc(err.message || 'Could not load accounts.') + '</div>';
+    }
+  }
+
+  async function toggleAccount(row) {
+    const open = row.querySelector('.acct-races');
+    if (open) { open.remove(); row.querySelector('.acct-caret').innerHTML = '&#9654;'; return; }
+    row.querySelector('.acct-caret').innerHTML = '&#9660;';
+    const box = document.createElement('div');
+    box.className = 'acct-races';
+    box.textContent = 'Loading…';
+    row.appendChild(box);
+    try {
+      const r = await Race.api.accountRaces(row.dataset.email);
+      const races = r.races || [];
+      box.innerHTML = races.length
+        ? races.map(rc => `
+            <div class="race-row">
+              <a href="race.html?id=${encodeURIComponent(rc.slug)}">${esc(rc.name || rc.slug)}</a>
+              <span class="role ${esc(rc.role)}">${rc.isCreator ? 'creator' : esc(rc.role)}${rc.visibility === 'private' ? ' &middot; private' : ''}</span>
+            </div>`).join('')
+        : '<span class="muted">Not on any races.</span>';
+    } catch (err) {
+      box.innerHTML = '<span class="err">' + esc(err.message) + '</span>';
     }
   }
 </script>
