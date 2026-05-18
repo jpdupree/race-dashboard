@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="lib/race-theme.css?v=9">
+<link rel="stylesheet" href="lib/race-theme.css?v=10">
 <style>
   body { padding: 20px 16px 32px; }
   .wrap { max-width: 860px; margin: 0 auto; }
@@ -343,7 +343,7 @@
 
 <div id="toast" style="display:none;"></div>
 
-<script src="lib/race-core.js?v=9"></script>
+<script src="lib/race-core.js?v=10"></script>
 <script>
   const slug = Race.qs('id');
   if (!slug) { window.location = 'index.html'; }
@@ -972,14 +972,15 @@
 
   async function load() {
     try {
-      const [cfgRes, dataRes] = await Promise.all([
-        fetch(CONFIG_PATH + '?_=' + Date.now(), { cache: 'no-store' }),
-        fetch(DATA_PATH   + '?_=' + Date.now(), { cache: 'no-store' })
+      // data.json reads through the worker when signed in (GitHub API, no
+      // Pages rebuild lag) so a pit press shows on other devices within a
+      // poll; config stays on Pages.
+      const [c, d] = await Promise.all([
+        Race.gh.readRaceJson(slug, 'config.json'),
+        Race.gh.readRaceJson(slug, 'data.json', true)
       ]);
-      if (!cfgRes.ok) throw new Error('config.json not found');
-      if (!dataRes.ok) throw new Error('data.json not found');
-      cfg  = await cfgRes.json();
-      data = await dataRes.json();
+      cfg  = c;
+      data = d;
       document.title = `Pit · ${cfg.name}`;
       document.getElementById('race-title').textContent = cfg.name;
       document.getElementById('error').style.display = 'none';
@@ -1073,7 +1074,7 @@
     if (!Race.auth.has()) openConnForm();
     renderConnStatus();
     await load();
-    setInterval(load, 15000);
+    setInterval(load, 10000);
     setInterval(tick, 1000);
     setInterval(updateLastUpdatedLabel, 1000);
   })();
