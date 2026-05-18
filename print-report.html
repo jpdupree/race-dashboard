@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="lib/race-theme.css?v=12">
+<link rel="stylesheet" href="lib/race-theme.css?v=13">
 <style>
   /* Screen styles (reuse dashboard) */
   .controls {
@@ -107,6 +107,57 @@
     width: 100%; height: 200px; display: block;
   }
 
+  /* Charts (shared Race.charts module) */
+  .chart-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px; padding: 22px 24px; margin-bottom: 24px;
+    position: relative;
+  }
+  .chart-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+  }
+  .chart-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 12px; flex-wrap: wrap; gap: 12px;
+  }
+  .chart-title {
+    font-family: 'Fraunces', serif; font-size: 22px; font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .chart-sub {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .chart-legend {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  }
+  .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .chart-svg { width: 100%; height: auto; display: block; }
+  .chart-svg .axis text { font-family: 'JetBrains Mono', monospace; font-size: 10px; fill: var(--text-muted); }
+  .chart-svg .axis line { stroke: var(--border); stroke-width: 1; }
+  .chart-svg .grid line { stroke: var(--border); stroke-width: 1; stroke-dasharray: 2 4; opacity: 0.6; }
+  .chart-svg .data-line { fill: none; stroke-width: 2; }
+  .chart-svg .data-line.projection { stroke-dasharray: 7 5; opacity: 0.55; }
+  .chart-svg .data-dot { stroke-width: 0; }
+  .chart-svg .projection-dot { opacity: 0.85; }
+  .chart-svg .target { stroke: var(--yellow); stroke-width: 1; stroke-dasharray: 4 4; fill: none; }
+  .chart-svg .target-label { fill: var(--yellow); font-size: 10px; }
+  .chart-svg .cutoff { stroke: var(--red); stroke-width: 1; stroke-dasharray: 4 4; fill: none; }
+  .intake-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;
+  }
+  @media (max-width: 900px) { .intake-grid { grid-template-columns: 1fr; } }
+  .intake-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px; padding: 18px 20px;
+  }
+  .intake-card h3 {
+    font-family: 'Fraunces', serif; font-size: 16px; font-weight: 600;
+    margin-bottom: 8px;
+  }
+
   @media print {
     @page { size: letter portrait; margin: 0.5in; }
 
@@ -160,6 +211,22 @@
     svg.elevation path.area { fill: rgba(196,74,24,0.18) !important; }
     svg.elevation path.line { stroke: #c44a18 !important; }
 
+    .chart-card, .intake-card {
+      background: white !important; border: 1px solid #999 !important;
+      page-break-inside: avoid;
+    }
+    .chart-card { page-break-before: always; }
+    .chart-card::before { display: none; }
+    .chart-title, .intake-card h3 { color: #111 !important; }
+    .chart-sub { color: #555 !important; }
+    .chart-svg .axis text { fill: #555 !important; }
+    .chart-svg .axis line { stroke: #999 !important; }
+    .chart-svg .grid line { stroke: #ccc !important; }
+    .chart-svg .target { stroke: #8a6700 !important; }
+    .chart-svg .target-label { fill: #8a6700 !important; }
+    .chart-svg .cutoff { stroke: #a82626 !important; }
+    .intake-grid { page-break-inside: avoid; }
+
     footer.site { color: #555 !important; border-top: 1px solid #999 !important; }
   }
 </style>
@@ -187,13 +254,14 @@
   <div class="course-stats" id="course-stats"></div>
   <svg class="elevation" id="elev-svg"></svg>
 </div>
+<div id="charts"></div>
 
 <footer class="site">
   <div id="meta">—</div>
   <div>Auto-generated · race-dashboard hub</div>
 </footer>
 
-<script src="lib/race-core.js?v=12"></script>
+<script src="lib/race-core.js?v=13"></script>
 <script>
   const slug = Race.qs('id');
   if (!slug) { window.location = 'index.html'; }
@@ -360,6 +428,7 @@
       document.getElementById('runners').innerHTML = runners.map(renderRunner).join('');
 
       renderCourseBlock();
+      Race.charts.render(document.getElementById('charts'), cfg, data);
 
       document.getElementById('meta').textContent = data.lastUpdated
         ? 'Data: ' + new Date(data.lastUpdated).toLocaleString()
