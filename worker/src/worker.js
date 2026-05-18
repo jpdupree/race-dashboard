@@ -13,6 +13,7 @@
 //     GET  /account-invite-info?token=...                               → { email }
 //     POST /accept-account-invite { token, password }                   → { token, email, role, expiresAt }
 //     GET  /accounts                                                    → { accounts, pendingInvites } (admin only)
+//     POST /account/delete   { email }                                  → { ok: true } (admin only, KV accounts)
 //     GET  /account-races?email=...                                     → { races } (admin only)
 //
 //   Race file IO (session required; reads honour share-token query)
@@ -553,11 +554,12 @@ async function handleAccounts(req, env) {
   if (session.role !== 'admin') return json({ error: 'Admins only' }, { status: 403 }, env, req);
 
   const byEmail = new Map();
+  const envEmails = new Set();
   let envUsers = [];
   try { envUsers = JSON.parse(env.USERS || '[]'); } catch (e) { envUsers = []; }
   for (const u of envUsers) {
     const email = normalizeEmail(u.email || u.username);
-    if (email) byEmail.set(email, { email, role: u.role || 'crew', source: 'env' });
+    if (email) { envEmails.add(email); byEmail.set(email, { email, role: u.role || 'crew', source: 'env' }); }
   }
   const pendingInvites = [];
   if (env.AUTH_KV) {
@@ -581,8 +583,35 @@ async function handleAccounts(req, env) {
       } catch (e) {}
     }
   }
-  const accounts = [...byEmail.values()].sort((a, b) => a.email.localeCompare(b.email));
+  // removable: the worker can delete a KV account; accounts baked into the
+  // USERS env var can only be removed by re-running `wrangler secret put`.
+  const accounts = [...byEmail.values()]
+    .map(a => ({ ...a, inEnv: envEmails.has(a.email), removable: !envEmails.has(a.email) }))
+    .sort((a, b) => a.email.localeCompare(b.email));
   return json({ accounts, pendingInvites }, {}, env, req);
+}
+
+// Admin-only: delete a hub account (KV-stored accounts only).
+async function handleAccountDelete(req, env) {
+  const session = await requireAuth(req, env);
+  if (!session || !session.email) return json({ error: 'Unauthorized' }, { status: 401 }, env, req);
+  if (session.role !== 'admin') return json({ error: 'Admins only' }, { status: 403 }, env, req);
+  if (!env.AUTH_KV) return json({ error: 'Account management requires AUTH_KV KV namespace binding' }, { status: 503 }, env, req);
+  let body;
+  try { body = await req.json(); }
+  catch (e) { return json({ error: 'Invalid JSON' }, { status: 400 }, env, req); }
+  const email = normalizeEmail(body && body.email);
+  if (!email) return json({ error: 'email required' }, { status: 400 }, env, req);
+  if (email === normalizeEmail(session.email)) {
+    return json({ error: "You can't delete your own account." }, { status: 400 }, env, req);
+  }
+  let envUsers = [];
+  try { envUsers = JSON.parse(env.USERS || '[]'); } catch (e) { envUsers = []; }
+  if (envUsers.some(u => normalizeEmail(u.email || u.username) === email)) {
+    return json({ error: 'This account is in the USERS list — remove it with `wrangler secret put USERS`.' }, { status: 400 }, env, req);
+  }
+  await env.AUTH_KV.delete('user:' + email);
+  return json({ ok: true }, {}, env, req);
 }
 
 // Admin-only: list the races a given account is creator / editor / viewer on.
@@ -1155,6 +1184,7 @@ export default {
     if (request.method === 'GET'  && path === '/account-invite-info') return handleAccountInviteInfo(request, env);
     if (request.method === 'POST' && path === '/accept-account-invite') return handleAcceptAccountInvite(request, env);
     if (request.method === 'GET'  && path === '/accounts')        return handleAccounts(request, env);
+    if (request.method === 'POST' && path === '/account/delete')  return handleAccountDelete(request, env);
     if (request.method === 'GET'  && path === '/account-races')   return handleAccountRaces(request, env);
 
     return json({ error: 'Not found', path }, { status: 404 }, env, request);

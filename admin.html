@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="lib/race-theme.css?v=11">
+<link rel="stylesheet" href="lib/race-theme.css?v=12">
 <style>
   .wrap { max-width: 620px; margin: 0 auto; }
   .panel {
@@ -58,6 +58,13 @@
     color: var(--text-muted);
   }
   .acct-tag.admin { color: var(--accent); border-color: var(--accent); }
+  .acct-del {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-muted); padding: 3px 8px; border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer;
+  }
+  .acct-del:hover { color: var(--red); border-color: var(--red); }
   .acct-caret { color: var(--text-muted); font-size: 10px; }
   .acct-races {
     border-top: 1px solid var(--border); padding: 10px 12px;
@@ -147,7 +154,7 @@
   </div>
 </div>
 
-<script src="lib/race-core.js?v=11"></script>
+<script src="lib/race-core.js?v=12"></script>
 <script>
   function esc(s) {
     return String(s == null ? '' : s)
@@ -240,19 +247,34 @@
     try {
       const r = await Race.api.accounts();
       const accounts = r.accounts || [];
+      const myEmail = (Race.auth.email() || '').toLowerCase();
       list.innerHTML = accounts.length
-        ? accounts.map(a => `
+        ? accounts.map(a => {
+            const canRemove = a.removable && a.email.toLowerCase() !== myEmail;
+            return `
             <div class="acct-row" data-email="${esc(a.email)}">
               <div class="acct-head">
                 <span class="acct-email">${esc(a.email)}</span>
                 <span class="acct-tag ${a.role === 'admin' ? 'admin' : ''}">${esc(a.role)}</span>
+                ${canRemove ? `<button type="button" class="acct-del" data-del="${esc(a.email)}">Remove</button>` : ''}
                 <span class="acct-caret">&#9654;</span>
               </div>
-            </div>`).join('')
+            </div>`;
+          }).join('')
         : '<div class="acct-races muted">No accounts yet.</div>';
 
       list.querySelectorAll('.acct-head').forEach(h => {
         h.addEventListener('click', () => toggleAccount(h.closest('.acct-row')));
+      });
+      list.querySelectorAll('.acct-del').forEach(b => {
+        b.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const email = b.dataset.del;
+          if (!confirm(`Remove the account ${email}? They'll no longer be able to sign in. (Any races they were added to keep the email listed until you remove it there.)`)) return;
+          b.disabled = true; b.textContent = '…';
+          try { await Race.api.deleteAccount(email); loadAccounts(); }
+          catch (err) { alert('Could not remove account: ' + err.message); b.disabled = false; b.textContent = 'Remove'; }
+        });
       });
 
       const pending = r.pendingInvites || [];
