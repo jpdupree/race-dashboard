@@ -866,7 +866,7 @@
       // config rarely changes — Pages is fine. data.json is the live file:
       // signed-in crew read it through the worker so a pit press shows up
       // within a poll instead of waiting on the Pages rebuild.
-      cfg  = await Race.gh.readRaceJson(slug, 'config.json');
+      cfg  = await Race.gh.readRaceJson(slug, 'config.json', true);
       data = await Race.gh.readRaceJson(slug, 'data.json', true);
       lastFetchAt = new Date();
 
