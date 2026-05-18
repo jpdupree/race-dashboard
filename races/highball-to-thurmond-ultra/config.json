@@ -130,7 +130,7 @@
     "sodiumMgPerHour": 700
   },
   "units": {
-    "distance": "km",
-    "elevation": "m"
+    "distance": "mi",
+    "elevation": "ft"
   }
 }
