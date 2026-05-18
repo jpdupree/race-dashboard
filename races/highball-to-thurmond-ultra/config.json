@@ -1,0 +1,129 @@
+{
+  "name": "Highball to Thurmond Ultra",
+  "location": "New River Gorge, WV",
+  "startTime": "2026-05-17T06:00:00-04:00",
+  "courseType": "segments",
+  "visibility": "public",
+  "createdBy": null,
+  "editors": [],
+  "viewers": [],
+  "cutoffs": {
+    "totalHours": 12.75
+  },
+  "course": {
+    "segments": [
+      {
+        "name": "Start → Deepwater – Loop Creek area",
+        "fromAid": "Start",
+        "toAid": "Deepwater – Loop Creek area",
+        "distanceMi": 5.9,
+        "elevationGainFt": 286,
+        "elevationLossFt": 344,
+        "arriveCutoffHours": null
+      },
+      {
+        "name": "Deepwater – Loop Creek area → Kanawha Falls Overlook",
+        "fromAid": "Deepwater – Loop Creek area",
+        "toAid": "Kanawha Falls Overlook",
+        "distanceMi": 3.8,
+        "elevationGainFt": 357,
+        "elevationLossFt": 257,
+        "arriveCutoffHours": null
+      },
+      {
+        "name": "Kanawha Falls Overlook → Top of Cotton Hill",
+        "fromAid": "Kanawha Falls Overlook",
+        "toAid": "Top of Cotton Hill",
+        "distanceMi": 4.2,
+        "elevationGainFt": 610,
+        "elevationLossFt": 11,
+        "arriveCutoffHours": null
+      },
+      {
+        "name": "Top of Cotton Hill → Cotton Hill Damn Access",
+        "fromAid": "Top of Cotton Hill",
+        "toAid": "Cotton Hill Damn Access",
+        "distanceMi": 4.0,
+        "elevationGainFt": 495,
+        "elevationLossFt": 1024,
+        "arriveCutoffHours": null
+      },
+      {
+        "name": "Cotton Hill Damn Access → Hawks Nest State Park",
+        "fromAid": "Cotton Hill Damn Access",
+        "toAid": "Hawks Nest State Park",
+        "distanceMi": 2.1,
+        "elevationGainFt": 119,
+        "elevationLossFt": 117,
+        "arriveCutoffHours": null
+      },
+      {
+        "name": "Hawks Nest State Park → Fayette Station Rd",
+        "fromAid": "Hawks Nest State Park",
+        "toAid": "Fayette Station Rd",
+        "distanceMi": 5.7,
+        "elevationGainFt": 893,
+        "elevationLossFt": 812,
+        "arriveCutoffHours": null
+      },
+      {
+        "name": "Fayette Station Rd → Kaymoor Miners Trail Mountain",
+        "fromAid": "Fayette Station Rd",
+        "toAid": "Kaymoor Miners Trail Mountain",
+        "distanceMi": 5.9,
+        "elevationGainFt": 1437,
+        "elevationLossFt": 443,
+        "arriveCutoffHours": null
+      },
+      {
+        "name": "Kaymoor Miners Trail Mountain → Kaymoor Trailhead",
+        "fromAid": "Kaymoor Miners Trail Mountain",
+        "toAid": "Kaymoor Trailhead",
+        "distanceMi": 7.8,
+        "elevationGainFt": 890,
+        "elevationLossFt": 1114,
+        "arriveCutoffHours": null
+      },
+      {
+        "name": "Kaymoor Trailhead → Cunard River Access",
+        "fromAid": "Kaymoor Trailhead",
+        "toAid": "Cunard River Access",
+        "distanceMi": 1.8,
+        "elevationGainFt": 234,
+        "elevationLossFt": 268,
+        "arriveCutoffHours": null
+      },
+      {
+        "name": "Cunard River Access → Southside Junction Trail",
+        "fromAid": "Cunard River Access",
+        "toAid": "Southside Junction Trail",
+        "distanceMi": 5.0,
+        "elevationGainFt": 67,
+        "elevationLossFt": 579,
+        "arriveCutoffHours": null
+      },
+      {
+        "name": "Southside Junction Trail → Finish",
+        "fromAid": "Southside Junction Trail",
+        "toAid": "Finish",
+        "distanceMi": 3.8,
+        "elevationGainFt": 831,
+        "elevationLossFt": 264,
+        "arriveCutoffHours": null
+      }
+    ]
+  },
+  "runners": [
+    {
+      "id": "soft-serve",
+      "name": "Soft Serve",
+      "bib": "Soft Serve",
+      "color": "#c44a18"
+    }
+  ],
+  "targets": {
+    "caloriesPerHour": 250,
+    "fluidOzPerHour": 20,
+    "sodiumMgPerHour": 500
+  }
+}
