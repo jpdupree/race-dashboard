@@ -1343,9 +1343,23 @@
         await Race.gh.mutateJson(Race.auth.cfg(), `races/${slug}/config.json`,
           (c) => { c.units = { distance, elevation }; return c; },
           `hub: set display units for ${slug}`);
+        // Apply in place. Re-rendering from the in-memory cfg avoids a reload
+        // that would re-read config before GitHub is read-after-write
+        // consistent — which would briefly show the pre-save units.
+        cfg.units = { distance, elevation };
+        const rc = document.getElementById('runners');
+        if (rc && mergedRunners) rc.innerHTML = mergedRunners.map(renderRunner).join('');
+        tick();
+        if (courseGpxPts) {
+          const gd = Race.gpx.totalDistanceMi(courseGpxPts);
+          const ge = Race.gpx.totalElevation(courseGpxPts);
+          document.getElementById('course-map-meta').textContent =
+            `${Race.units.distance(gd, cfg)} · +${Math.round(Race.units.elevationVal(ge.gainFt, cfg)).toLocaleString()} / -${Math.round(Race.units.elevationVal(ge.lossFt, cfg)).toLocaleString()} ${Race.units.elevationLabel(cfg)}`;
+          try { renderElevationProfile(courseGpxPts, Race.course.aidStations(cfg)); updateTracking(); } catch (e2) {}
+        }
         document.getElementById('ax-units-result').innerHTML =
-          '<div style="color: var(--green); font-size: 11px; margin-top: 8px;">Saved — reloading…</div>';
-        setTimeout(() => location.reload(), 700);
+          '<div style="color: var(--green); font-size: 11px; margin-top: 8px;">Saved ✓ — units updated.</div>';
+        unitsSave.disabled = false; unitsSave.textContent = 'Save units';
       } catch (err) {
         document.getElementById('ax-units-result').innerHTML =
           `<div class="access-err">${escapeHtml(err.message)}</div>`;
