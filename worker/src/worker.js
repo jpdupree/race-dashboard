@@ -9,6 +9,11 @@
 //     POST /reset-link       { email }                                 → { url, token } (admin only)
 //     GET  /reset-info?token=...                                        → { email }
 //     POST /reset-password   { token, newPassword }                     → { token, email, role, expiresAt }
+//     POST /account-invite   { email }                                 → { url, token } (admin only)
+//     GET  /account-invite-info?token=...                               → { email }
+//     POST /accept-account-invite { token, password }                   → { token, email, role, expiresAt }
+//     GET  /accounts                                                    → { accounts, pendingInvites } (admin only)
+//     GET  /account-races?email=...                                     → { races } (admin only)
 //
 //   Race file IO (session required; reads honour share-token query)
 //     POST /commit           { path, content, sha?, message }         → GitHub PUT response (writer ACL enforced)
@@ -466,6 +471,163 @@ async function handleResetPassword(req, env) {
   return json({ token: sessionToken, email: rec.email, username: rec.email, role, expiresAt: exp }, {}, env, req);
 }
 
+// Admin-only: mint a hub account-invite link (not tied to any race). The
+// recipient signs up and can then create their own races.
+async function handleAccountInvite(req, env) {
+  const session = await requireAuth(req, env);
+  if (!session || !session.email) return json({ error: 'Unauthorized' }, { status: 401 }, env, req);
+  if (session.role !== 'admin') return json({ error: 'Admins only' }, { status: 403 }, env, req);
+  if (!env.AUTH_KV) return json({ error: 'Account invites require AUTH_KV KV namespace binding' }, { status: 503 }, env, req);
+  let body;
+  try { body = await req.json(); }
+  catch (e) { return json({ error: 'Invalid JSON' }, { status: 400 }, env, req); }
+  const email = normalizeEmail(body && body.email);
+  if (!email) return json({ error: 'email required' }, { status: 400 }, env, req);
+  if (await lookupUser(env, email)) {
+    return json({ error: 'An account with that email already exists' }, { status: 409 }, env, req);
+  }
+  const token = randomToken(24);
+  const expiresAt = Date.now() + INVITE_TTL_DAYS * 24 * 3600 * 1000;
+  await env.AUTH_KV.put('acct:' + token, JSON.stringify({
+    email, createdBy: session.email, createdAt: new Date().toISOString(), expiresAt
+  }), { expiration: Math.floor(expiresAt / 1000) });
+  const base = publicBaseUrl(env, req);
+  const url = (base ? base : '') + `/signup.html?account=${encodeURIComponent(token)}`;
+  return json({ token, url, email, expiresAt }, {}, env, req);
+}
+
+// Public: metadata for an account-invite link.
+async function handleAccountInviteInfo(req, env) {
+  if (!env.AUTH_KV) return json({ error: 'Account invites require AUTH_KV KV namespace binding' }, { status: 503 }, env, req);
+  const url = new URL(req.url);
+  const token = url.searchParams.get('token');
+  if (!token) return json({ error: 'Missing token' }, { status: 400 }, env, req);
+  const raw = await env.AUTH_KV.get('acct:' + token);
+  if (!raw) return json({ error: 'Account invite not found or expired' }, { status: 404 }, env, req);
+  let rec;
+  try { rec = JSON.parse(raw); }
+  catch (e) { return json({ error: 'Corrupt account invite' }, { status: 500 }, env, req); }
+  if (rec.expiresAt && rec.expiresAt < Date.now()) {
+    return json({ error: 'Account invite expired' }, { status: 410 }, env, req);
+  }
+  return json({ email: rec.email }, {}, env, req);
+}
+
+// Public: redeem an account invite — create the account, return a session.
+async function handleAcceptAccountInvite(req, env) {
+  if (!env.AUTH_KV) return json({ error: 'Account invites require AUTH_KV KV namespace binding' }, { status: 503 }, env, req);
+  let body;
+  try { body = await req.json(); }
+  catch (e) { return json({ error: 'Invalid JSON' }, { status: 400 }, env, req); }
+  const { token, password } = body || {};
+  if (!token || !password) return json({ error: 'token and password required' }, { status: 400 }, env, req);
+  if (password.length < 8) return json({ error: 'Password must be at least 8 characters' }, { status: 400 }, env, req);
+  const raw = await env.AUTH_KV.get('acct:' + token);
+  if (!raw) return json({ error: 'Account invite not found or expired' }, { status: 404 }, env, req);
+  let rec;
+  try { rec = JSON.parse(raw); }
+  catch (e) { return json({ error: 'Corrupt account invite' }, { status: 500 }, env, req); }
+  if (rec.expiresAt && rec.expiresAt < Date.now()) {
+    await env.AUTH_KV.delete('acct:' + token);
+    return json({ error: 'Account invite expired' }, { status: 410 }, env, req);
+  }
+  if (await lookupUser(env, rec.email)) {
+    await env.AUTH_KV.delete('acct:' + token);
+    return json({ error: 'An account with that email already exists — just sign in.' }, { status: 409 }, env, req);
+  }
+  try { await createUserInKv(env, rec.email, password, 'crew'); }
+  catch (err) { return json({ error: err.message || 'Could not create account' }, { status: 500 }, env, req); }
+  await env.AUTH_KV.delete('acct:' + token);
+  const exp = Date.now() + SESSION_HOURS * 3600 * 1000;
+  const sessionToken = await signJwt({ sub: rec.email, email: rec.email, role: 'crew', exp }, env.JWT_SECRET);
+  return json({
+    token: sessionToken, email: rec.email, username: rec.email,
+    role: 'crew', expiresAt: exp, accountCreated: true
+  }, {}, env, req);
+}
+
+// Admin-only: list hub accounts (USERS env + KV) and pending account invites.
+async function handleAccounts(req, env) {
+  const session = await requireAuth(req, env);
+  if (!session || !session.email) return json({ error: 'Unauthorized' }, { status: 401 }, env, req);
+  if (session.role !== 'admin') return json({ error: 'Admins only' }, { status: 403 }, env, req);
+
+  const byEmail = new Map();
+  let envUsers = [];
+  try { envUsers = JSON.parse(env.USERS || '[]'); } catch (e) { envUsers = []; }
+  for (const u of envUsers) {
+    const email = normalizeEmail(u.email || u.username);
+    if (email) byEmail.set(email, { email, role: u.role || 'crew', source: 'env' });
+  }
+  const pendingInvites = [];
+  if (env.AUTH_KV) {
+    const users = await env.AUTH_KV.list({ prefix: 'user:' });
+    for (const k of users.keys) {
+      const raw = await env.AUTH_KV.get(k.name);
+      if (!raw) continue;
+      try {
+        const u = JSON.parse(raw);
+        const email = normalizeEmail(u.email || k.name.slice(5));
+        byEmail.set(email, { email, role: u.role || 'crew', source: 'kv' });
+      } catch (e) {}
+    }
+    const invites = await env.AUTH_KV.list({ prefix: 'acct:' });
+    for (const k of invites.keys) {
+      const raw = await env.AUTH_KV.get(k.name);
+      if (!raw) continue;
+      try {
+        const r = JSON.parse(raw);
+        pendingInvites.push({ token: k.name.slice(5), email: r.email, expiresAt: r.expiresAt || null });
+      } catch (e) {}
+    }
+  }
+  const accounts = [...byEmail.values()].sort((a, b) => a.email.localeCompare(b.email));
+  return json({ accounts, pendingInvites }, {}, env, req);
+}
+
+// Admin-only: list the races a given account is creator / editor / viewer on.
+async function handleAccountRaces(req, env) {
+  const session = await requireAuth(req, env);
+  if (!session || !session.email) return json({ error: 'Unauthorized' }, { status: 401 }, env, req);
+  if (session.role !== 'admin') return json({ error: 'Admins only' }, { status: 403 }, env, req);
+  const email = normalizeEmail(new URL(req.url).searchParams.get('email'));
+  if (!email) return json({ error: 'email required' }, { status: 400 }, env, req);
+
+  const treeUrl = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/git/trees/${encodeURIComponent(env.GITHUB_BRANCH || 'main')}?recursive=1`;
+  const treeRes = await fetch(treeUrl, {
+    headers: {
+      Authorization: `token ${env.GITHUB_TOKEN}`,
+      Accept: 'application/vnd.github.v3+json',
+      'User-Agent': 'race-dashboard-proxy'
+    }
+  });
+  if (!treeRes.ok) return json({ email, races: [] }, {}, env, req);
+  const tree = await treeRes.json();
+  const configPaths = (tree.tree || [])
+    .filter(t => t.type === 'blob' && /^races\/[^/]+\/config\.json$/.test(t.path))
+    .map(t => t.path);
+
+  const races = [];
+  for (const p of configPaths) {
+    const slug = p.split('/')[1];
+    let cfg = null;
+    try { cfg = await loadRaceConfig(env, slug); } catch (e) { continue; }
+    if (!cfg) continue;
+    let role = null;
+    if (canEditRace(cfg, email)) role = 'editor';
+    else if ((cfg.viewers || []).some(v => normalizeEmail(v) === email)) role = 'viewer';
+    if (role) {
+      races.push({
+        slug, name: cfg.name,
+        visibility: cfg.visibility || 'public',
+        role,
+        isCreator: normalizeEmail(cfg.createdBy) === email
+      });
+    }
+  }
+  return json({ email, races }, {}, env, req);
+}
+
 async function handleCommit(req, env) {
   const session = await requireAuth(req, env);
   if (!session || !session.email) return json({ error: 'Unauthorized' }, { status: 401 }, env, req);
@@ -877,17 +1039,23 @@ async function handleShareRevoke(req, env) {
   catch (e) { return json({ error: 'Invalid JSON' }, { status: 400 }, env, req); }
   const { token } = body || {};
   if (!token) return json({ error: 'token required' }, { status: 400 }, env, req);
-  // The token may be a share-link token (share:) or a pending-invite token
-  // (invite:) — this endpoint revokes either.
+  // The token may be a share link (share:), a race invite (invite:), or a
+  // hub account invite (acct:) — this endpoint revokes any of them.
   let kvKey = 'share:' + token;
   let raw = await env.AUTH_KV.get(kvKey);
   if (!raw) { kvKey = 'invite:' + token; raw = await env.AUTH_KV.get(kvKey); }
+  if (!raw) { kvKey = 'acct:' + token; raw = await env.AUTH_KV.get(kvKey); }
   if (!raw) return json({ ok: true }, {}, env, req); // already gone
   let rec;
   try { rec = JSON.parse(raw); }
   catch (e) { return json({ error: 'Corrupt token' }, { status: 500 }, env, req); }
-  try { await requireRaceAdmin(env, rec.slug, session.email); }
-  catch (err) { return json({ error: err.message }, { status: err.status || 500 }, env, req); }
+  if (kvKey.startsWith('acct:')) {
+    // Account invites aren't race-scoped — gate on the hub admin role.
+    if (session.role !== 'admin') return json({ error: 'Admins only' }, { status: 403 }, env, req);
+  } else {
+    try { await requireRaceAdmin(env, rec.slug, session.email); }
+    catch (err) { return json({ error: err.message }, { status: err.status || 500 }, env, req); }
+  }
   await env.AUTH_KV.delete(kvKey);
   return json({ ok: true }, {}, env, req);
 }
@@ -983,6 +1151,11 @@ export default {
     if (request.method === 'POST' && path === '/access/remove')   return handleAccessRemove(request, env);
     if (request.method === 'GET'  && path === '/access')          return handleAccessList(request, env);
     if (request.method === 'GET'  && path === '/my-races')        return handleMyRaces(request, env);
+    if (request.method === 'POST' && path === '/account-invite')  return handleAccountInvite(request, env);
+    if (request.method === 'GET'  && path === '/account-invite-info') return handleAccountInviteInfo(request, env);
+    if (request.method === 'POST' && path === '/accept-account-invite') return handleAcceptAccountInvite(request, env);
+    if (request.method === 'GET'  && path === '/accounts')        return handleAccounts(request, env);
+    if (request.method === 'GET'  && path === '/account-races')   return handleAccountRaces(request, env);
 
     return json({ error: 'Not found', path }, { status: 404 }, env, request);
   }
