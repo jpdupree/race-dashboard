@@ -3,16 +3,14 @@
     {
       "slug": "highball-to-thurmond-ultra",
       "name": "Highball to Thurmond Ultra",
-      "location": "New River Gorge, WV",
-      "startTime": "2026-05-17T06:00:00-04:00",
+      "location": "Thurmond, WV",
+      "startTime": "2026-05-17T05:00:00-05:00",
       "courseType": "segments",
-      "totalDistanceMi": 50.0,
+      "totalDistanceMi": 50,
       "runnerNames": [
         "Soft Serve"
-      ],
-      "cutoffHours": 12.75,
-      "createdBy": null
+      ]
     }
   ],
-  "lastUpdated": "2026-05-17T18:41:42-04:00"
+  "lastUpdated": "2026-05-16T19:47:45.641Z"
 }

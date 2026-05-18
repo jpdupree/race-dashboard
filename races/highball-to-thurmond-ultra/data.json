@@ -1,66 +1,66 @@
 {
-  "lastUpdated": "2026-05-17T18:41:42-04:00",
+  "lastUpdated": "2026-05-17T22:41:42.110Z",
   "runners": [
     {
       "id": "soft-serve",
       "legs": [
         {
           "index": 1,
-          "startTime": "2026-05-17T06:00:00-04:00",
-          "endTime": "2026-05-17T07:02:22-04:00"
+          "startTime": "2026-05-17T10:00:00.000Z",
+          "endTime": "2026-05-17T11:02:22.000Z"
         },
         {
           "index": 2,
-          "startTime": "2026-05-17T07:04:22-04:00",
-          "endTime": "2026-05-17T08:02:32-04:00"
+          "startTime": "2026-05-17T11:04:22.000Z",
+          "endTime": "2026-05-17T12:02:31.510Z"
         },
         {
           "index": 3,
-          "startTime": "2026-05-17T08:03:45-04:00",
-          "endTime": "2026-05-17T08:48:34-04:00"
+          "startTime": "2026-05-17T12:03:45.000Z",
+          "endTime": "2026-05-17T12:48:34.000Z"
         },
         {
           "index": 4,
-          "startTime": "2026-05-17T08:50:14-04:00",
-          "endTime": "2026-05-17T10:01:01-04:00"
+          "startTime": "2026-05-17T12:50:14.000Z",
+          "endTime": "2026-05-17T14:01:00.850Z"
         },
         {
           "index": 5,
-          "startTime": "2026-05-17T10:03:59-04:00",
-          "endTime": "2026-05-17T10:21:02-04:00"
+          "startTime": "2026-05-17T14:03:59.000Z",
+          "endTime": "2026-05-17T14:21:02.160Z"
         },
         {
           "index": 6,
-          "startTime": "2026-05-17T10:25:43-04:00",
-          "endTime": "2026-05-17T12:13:22-04:00"
+          "startTime": "2026-05-17T14:25:43.000Z",
+          "endTime": "2026-05-17T16:13:22.000Z"
         },
         {
           "index": 7,
-          "startTime": "2026-05-17T12:15:26-04:00",
-          "endTime": "2026-05-17T14:00:28-04:00"
+          "startTime": "2026-05-17T16:15:26.000Z",
+          "endTime": "2026-05-17T18:00:28.000Z"
         },
         {
           "index": 8,
-          "startTime": "2026-05-17T14:02:42-04:00",
-          "endTime": "2026-05-17T15:58:26-04:00",
+          "startTime": "2026-05-17T18:02:42.000Z",
+          "endTime": "2026-05-17T19:58:26.000Z",
           "notes": "Estimated split — GPS watch lost signal near mile 35; arrivals interpolated between Kaymoor Miners and the official finish."
         },
         {
           "index": 9,
-          "startTime": "2026-05-17T16:00:26-04:00",
-          "endTime": "2026-05-17T16:27:08-04:00",
+          "startTime": "2026-05-17T20:00:26.000Z",
+          "endTime": "2026-05-17T20:27:08.000Z",
           "notes": "Estimated split — GPS watch lost signal near mile 35; arrivals interpolated between Kaymoor Miners and the official finish."
         },
         {
           "index": 10,
-          "startTime": "2026-05-17T16:29:08-04:00",
-          "endTime": "2026-05-17T17:43:19-04:00",
+          "startTime": "2026-05-17T20:29:08.000Z",
+          "endTime": "2026-05-17T21:43:19.000Z",
           "notes": "Estimated split — GPS watch lost signal near mile 35; arrivals interpolated between Kaymoor Miners and the official finish."
         },
         {
           "index": 11,
-          "startTime": "2026-05-17T17:45:19-04:00",
-          "endTime": "2026-05-17T18:41:42-04:00",
+          "startTime": "2026-05-17T21:45:19.000Z",
+          "endTime": "2026-05-17T22:41:42.110Z",
           "notes": "Estimated split — GPS watch lost signal near mile 35; arrivals interpolated between Kaymoor Miners and the official finish."
         }
       ]
