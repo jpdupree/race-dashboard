@@ -20,8 +20,8 @@
         "fromAid": "Start",
         "toAid": "Deepwater – Loop Creek area",
         "distanceMi": 5.9,
-        "elevationGainFt": null,
-        "elevationLossFt": null,
+        "elevationGainFt": 286,
+        "elevationLossFt": 344,
         "arriveCutoffHours": null
       },
       {
@@ -29,8 +29,8 @@
         "fromAid": "Deepwater – Loop Creek area",
         "toAid": "Kanawha Falls Overlook",
         "distanceMi": 3.8,
-        "elevationGainFt": null,
-        "elevationLossFt": null,
+        "elevationGainFt": 357,
+        "elevationLossFt": 257,
         "arriveCutoffHours": null
       },
       {
@@ -38,8 +38,8 @@
         "fromAid": "Kanawha Falls Overlook",
         "toAid": "Top of Cotton Hill",
         "distanceMi": 4.2,
-        "elevationGainFt": null,
-        "elevationLossFt": null,
+        "elevationGainFt": 610,
+        "elevationLossFt": 11,
         "arriveCutoffHours": null
       },
       {
@@ -47,8 +47,8 @@
         "fromAid": "Top of Cotton Hill",
         "toAid": "Cotton Hill Damn Access",
         "distanceMi": 4,
-        "elevationGainFt": null,
-        "elevationLossFt": null,
+        "elevationGainFt": 495,
+        "elevationLossFt": 1024,
         "arriveCutoffHours": null
       },
       {
@@ -56,8 +56,8 @@
         "fromAid": "Cotton Hill Damn Access",
         "toAid": "Hawks Nest State Park",
         "distanceMi": 2.1,
-        "elevationGainFt": null,
-        "elevationLossFt": null,
+        "elevationGainFt": 119,
+        "elevationLossFt": 117,
         "arriveCutoffHours": null
       },
       {
@@ -65,8 +65,8 @@
         "fromAid": "Hawks Nest State Park",
         "toAid": "Fayette Station Rd",
         "distanceMi": 5.7,
-        "elevationGainFt": null,
-        "elevationLossFt": null,
+        "elevationGainFt": 893,
+        "elevationLossFt": 812,
         "arriveCutoffHours": null
       },
       {
@@ -74,8 +74,8 @@
         "fromAid": "Fayette Station Rd",
         "toAid": "Kaymoor Miners Trail Mountain Bike Parking Lot",
         "distanceMi": 5.9,
-        "elevationGainFt": null,
-        "elevationLossFt": null,
+        "elevationGainFt": 1437,
+        "elevationLossFt": 443,
         "arriveCutoffHours": null
       },
       {
@@ -83,8 +83,8 @@
         "fromAid": "Kaymoor Miners Trail Mountain Bike Parking Lot",
         "toAid": "Kaymoor Trailhead ",
         "distanceMi": 7.8,
-        "elevationGainFt": null,
-        "elevationLossFt": null,
+        "elevationGainFt": 890,
+        "elevationLossFt": 1114,
         "arriveCutoffHours": null
       },
       {
@@ -92,8 +92,8 @@
         "fromAid": "Kaymoor Trailhead ",
         "toAid": "Cunard River Access",
         "distanceMi": 1.8,
-        "elevationGainFt": null,
-        "elevationLossFt": null,
+        "elevationGainFt": 234,
+        "elevationLossFt": 268,
         "arriveCutoffHours": null
       },
       {
@@ -101,8 +101,8 @@
         "fromAid": "Cunard River Access",
         "toAid": "Southside Junction Trail",
         "distanceMi": 5,
-        "elevationGainFt": null,
-        "elevationLossFt": null,
+        "elevationGainFt": 67,
+        "elevationLossFt": 579,
         "arriveCutoffHours": null
       },
       {
@@ -110,8 +110,8 @@
         "fromAid": "Southside Junction Trail",
         "toAid": "Finish",
         "distanceMi": 3.8,
-        "elevationGainFt": null,
-        "elevationLossFt": null,
+        "elevationGainFt": 831,
+        "elevationLossFt": 264,
         "arriveCutoffHours": null
       }
     ]

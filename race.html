@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="lib/race-theme.css?v=13">
+<link rel="stylesheet" href="lib/race-theme.css?v=14">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
   .cutoffs {
@@ -74,7 +74,7 @@
   .status-finished { color: var(--accent); }
 
   .stats {
-    display: grid; grid-template-columns: repeat(8, 1fr);
+    display: grid; grid-template-columns: repeat(9, 1fr);
     border-bottom: 1px solid var(--border);
   }
   .stat {
@@ -485,7 +485,7 @@
 </footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="lib/race-core.js?v=13"></script>
+<script src="lib/race-core.js?v=14"></script>
 <script>
   const REFRESH_MS = 10000;
   const slug = Race.qs('id');
@@ -714,6 +714,11 @@
             <span class="label">Pit Total</span>
             <span class="value live-timer" data-base="${c.completedPitSec}" data-since="${c.inPit ? (c.liveSince || '') : ''}">${Race.fmt.duration(c.totalPitSec)}</span>
             <span class="sub">${c.inPit ? 'in pit now' : (c.avgPitSec != null ? 'avg ' + Race.fmt.duration(c.avgPitSec) : 'no pit yet')}</span>
+          </div>
+          <div class="stat">
+            <span class="label">Elevation</span>
+            <span class="value">${c.elevGainFt != null ? '+' + c.elevGainFt.toLocaleString() : '—'}</span>
+            <span class="sub">${c.elevGainFt != null ? '−' + (c.elevLossFt || 0).toLocaleString() + ' ft · est.' : 'no profile'}</span>
           </div>
           ${(() => {
             let liveCls = '', liveValue = '—', liveSub;
